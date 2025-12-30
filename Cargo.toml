@@ -1,19 +1,11 @@
 [package]
-name = "hypergrab"
+name = "hypergrab2"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = "0.28"
-calamine = "0.24"
-rfd = "0.14"
-xcap = "0.0.14"
-image = "0.25"
-chrono = "0.4"
-
-[profile.release]
-opt-level = 'z'     # Optimize for size ('z' is smaller than 's')
-lto = true          # Enable Link-Time Optimization
-codegen-units = 1   # Maximize LTO effect (may increase compilation time)
-panic = 'abort'     # Abort on panic without unwinding, reducing code size
-strip = true        # Strip debug symbols and other metadata from the binary
+eframe = "0.29"
+calamine = "0.24" # Excel reader
+xcap = "0.0.14"   # Cross-platform screen capture
+image = "0.25"    # Image processing
+rfd = "0.14"      # File dialogs

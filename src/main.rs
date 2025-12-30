@@ -4,21 +4,27 @@ use calamine::{Reader, Xlsx, open_workbook};
 use eframe::egui;
 use image::DynamicImage;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::thread;
+use std::time::Duration;
 use xcap::Monitor;
-
-struct TestItem {
-    codice: String,
-    descrizione: String,
-}
 
 #[derive(PartialEq)]
 enum AppState {
     Idle,
-    RequestMinimize,
-    WaitingForMinimize(Instant),
+    RequestCapture,
     CaptureAndSave,
     Restore,
+}
+
+#[derive(PartialEq)]
+enum View {
+    Main,
+    Info,
+}
+
+struct TestItem {
+    code: String,
+    description: String,
 }
 
 struct MyApp {
@@ -27,6 +33,7 @@ struct MyApp {
     selected_index: Option<usize>,
     status_message: String,
     state: AppState,
+    current_view: View,
 }
 
 impl Default for MyApp {
@@ -37,6 +44,7 @@ impl Default for MyApp {
             selected_index: None,
             status_message: "Select an Excel file to start".to_string(),
             state: AppState::Idle,
+            current_view: View::Main,
         }
     }
 }
@@ -50,16 +58,15 @@ impl MyApp {
                 return;
             }
         };
-
         if let Some(Ok(range)) = workbook.worksheet_range_at(0) {
             self.items.clear();
             for row in range.rows().skip(1) {
-                let codice = row.get(0).map(|c| c.to_string()).unwrap_or_default();
-                let descrizione = row.get(1).map(|c| c.to_string()).unwrap_or_default();
-                if !codice.is_empty() {
+                let code = row.get(0).map(|c| c.to_string()).unwrap_or_default();
+                let desc = row.get(1).map(|c| c.to_string()).unwrap_or_default();
+                if !code.is_empty() {
                     self.items.push(TestItem {
-                        codice,
-                        descrizione,
+                        code,
+                        description: desc,
                     });
                 }
             }
@@ -69,32 +76,28 @@ impl MyApp {
     }
 
     fn execute_capture_logic(&mut self) {
-        let idx = self.selected_index.expect("Select a test");
+        let idx = self.selected_index.expect("No test selected");
         let item = &self.items[idx];
         let dir = self.excel_path.as_ref().unwrap().parent().unwrap();
 
-        // Calcolo nome file sequenziale
-        let mut final_path = dir.join(format!("{}.jpg", item.codice));
+        let mut final_path = dir.join(format!("{}.jpg", item.code));
         let mut counter = 1;
         while final_path.exists() {
-            final_path = dir.join(format!("{}_{}.jpg", item.codice, counter));
+            final_path = dir.join(format!("{}_{}.jpg", item.code, counter));
             counter += 1;
         }
 
-        // Cattura schermo
         let monitors = Monitor::all().unwrap();
         if let Some(monitor) = monitors.first() {
             match monitor.capture_image() {
                 Ok(image) => {
                     let dynamic_img = DynamicImage::ImageRgba8(image);
-                    match dynamic_img.to_rgb8().save(&final_path) {
-                        Ok(_) => {
-                            self.status_message = format!(
-                                "✅ Saved: {}",
-                                final_path.file_name().unwrap().to_string_lossy()
-                            )
-                        }
-                        Err(e) => self.status_message = format!("❌ Save error: {}", e),
+                    if let Ok(_) = dynamic_img.to_rgb8().save(&final_path) {
+                        self.status_message = format!(
+                            "✅ Saved: {}",
+                            final_path.file_name().unwrap().to_string_lossy()
+                        );
+                        print!("\x07"); // System Beep
                     }
                 }
                 Err(e) => self.status_message = format!("❌ Capture error: {}", e),
@@ -105,27 +108,22 @@ impl MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // --- GESTIONE LOGICA STATI ---
         match self.state {
-            AppState::RequestMinimize => {
+            AppState::RequestCapture => {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                self.state = AppState::WaitingForMinimize(Instant::now());
-            }
-            AppState::WaitingForMinimize(start_time) => {
-                // Attesa 400ms per permettere alla finestra di sparire del tutto
-                if start_time.elapsed() >= Duration::from_millis(400) {
-                    self.state = AppState::CaptureAndSave;
-                }
+                self.state = AppState::CaptureAndSave;
                 ctx.request_repaint();
             }
             AppState::CaptureAndSave => {
-                // Esegue la cattura e il salvataggio mentre è ancora minimizzata
+                // SLEEP used here while window is hidden to ensure OS redraw
+                thread::sleep(Duration::from_millis(700));
                 self.execute_capture_logic();
                 self.state = AppState::Restore;
                 ctx.request_repaint();
             }
             AppState::Restore => {
-                // Solo ora ripristiniamo la finestra
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                 self.state = AppState::Idle;
@@ -133,61 +131,87 @@ impl eframe::App for MyApp {
             AppState::Idle => {}
         }
 
-        // --- INTERFACCIA UTENTE ---
+        egui::TopBottomPanel::top("nav").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut self.current_view, View::Main, "Main");
+                ui.selectable_value(&mut self.current_view, View::Info, "Info");
+            });
+        });
+
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("📸 Excel Test Capture");
+            match self.current_view {
+                View::Main => {
+                    ui.heading("📸 Excel Test Capture");
+                    if ui.button("📂 Load Excel").clicked() {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Excel", &["xlsx"])
+                            .pick_file()
+                        {
+                            self.load_excel(path);
+                        }
+                    }
+                    ui.separator();
 
-            if ui.button("📂 Load Excel file").clicked() {
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("Excel", &["xlsx"])
-                    .pick_file()
-                {
-                    self.load_excel(path);
-                }
-            }
+                    // --- SCROLL AREA CONSTRAINED TO ~10 ITEMS ---
+                    ui.label("Test List:");
+                    egui::ScrollArea::vertical()
+                        .max_height(245.0) // Approx 10 items * 24px + padding
+                        .auto_shrink([false, false]) // Keep height fixed even if list is short
+                        .show(ui, |ui| {
+                            for (i, item) in self.items.iter().enumerate() {
+                                let is_selected = self.selected_index == Some(i);
+                                if ui
+                                    .selectable_label(
+                                        is_selected,
+                                        format!("[{}] {}", item.code, item.description),
+                                    )
+                                    .clicked()
+                                {
+                                    self.selected_index = Some(i);
+                                }
+                            }
+                        });
 
-            ui.separator();
-
-            if self.items.is_empty() {
-                ui.label("Load a file to see the tests.");
-            } else {
-                egui::ScrollArea::vertical()
-                    .max_height(350.0)
-                    .show(ui, |ui| {
-                        for (i, item) in self.items.iter().enumerate() {
-                            let is_selected = self.selected_index == Some(i);
+                    ui.separator();
+                    if self.selected_index.is_some() {
+                        let is_idle = self.state == AppState::Idle;
+                        ui.add_enabled_ui(is_idle, |ui| {
                             if ui
-                                .selectable_label(
-                                    is_selected,
-                                    format!("[{}] {}", item.codice, item.descrizione),
+                                .add_sized(
+                                    [ui.available_width(), 40.0],
+                                    egui::Button::new("📸 CAPTURE"),
                                 )
                                 .clicked()
                             {
-                                self.selected_index = Some(i);
+                                self.state = AppState::RequestCapture;
                             }
-                        }
-                    });
-            }
-
-            ui.separator();
-
-            if let Some(_) = self.selected_index {
-                // Disabilita il bottone se siamo già in fase di cattura
-                let enabled = self.state == AppState::Idle;
-                ui.add_enabled_ui(enabled, |ui| {
-                    if ui
-                        .add_sized(
-                            [ui.available_width(), 40.0],
-                            egui::Button::new("📸 CAPTURE"),
-                        )
-                        .clicked()
-                    {
-                        self.state = AppState::RequestMinimize;
+                        });
                     }
-                });
+                }
+                View::Info => {
+                    ui.heading("Info Page");
+                    ui.label(
+                        "This software was developed to assist in the process\n \
+                        of obtaining evidence during the qualification or\n \
+                        validation of computerized systems.\n \
+                        \n \
+                        It was developed in Rust and Egui for a personal challenge.\n \
+                        \n \
+                        It is distributed under the GPL v. 3.0 license.\n \
+                        \n \
+                        \n \
+                        Daniel Consonni\n \
+                        \n \
+                        \n \
+                        A special thank you to Geovanna Mendes de Souza, whose observations\n \
+                        were the starting point for the development of\n \
+                        this application.",
+                    );
+                }
             }
+        });
 
-            ui.add_space(10.0);
+        egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.label(egui::RichText::new(&self.status_message).color(egui::Color32::LIGHT_BLUE));
         });
     }
@@ -196,11 +220,10 @@ impl eframe::App for MyApp {
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([500.0, 300.0])
+            .with_inner_size([500.0, 420.0])
             .with_title("Test Capture Tool"),
         ..Default::default()
     };
-
     eframe::run_native(
         "Excel Screen Capture",
         options,
