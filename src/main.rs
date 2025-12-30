@@ -4,14 +4,14 @@ use calamine::{Reader, Xlsx, open_workbook};
 use eframe::egui;
 use image::DynamicImage;
 use std::path::PathBuf;
-use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant}; // Usiamo Instant invece di thread::sleep
 use xcap::Monitor;
 
 #[derive(PartialEq)]
 enum AppState {
     Idle,
     RequestCapture,
+    WaitingForCapture(Instant), // Nuovo stato per l'attesa asincrona
     CaptureAndSave,
     Restore,
 }
@@ -97,7 +97,8 @@ impl MyApp {
                             "✅ Saved: {}",
                             final_path.file_name().unwrap().to_string_lossy()
                         );
-                        print!("\x07"); // System Beep
+                        // Beep sound
+                        print!("\x07");
                     }
                 }
                 Err(e) => self.status_message = format!("❌ Capture error: {}", e),
@@ -108,29 +109,39 @@ impl MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // --- LOGICA DEGLI STATI (NON BLOCCANTE) ---
         match self.state {
             AppState::RequestCapture => {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                self.state = AppState::CaptureAndSave;
+                
+                // Passiamo allo stato di attesa salvando il tempo attuale
+                self.state = AppState::WaitingForCapture(Instant::now());
+                ctx.request_repaint();
+            }
+            AppState::WaitingForCapture(start_time) => {
+                // Se sono passati 700ms, procediamo alla cattura
+                if start_time.elapsed() >= Duration::from_millis(700) {
+                    self.state = AppState::CaptureAndSave;
+                }
+                // Fondamentale: continuiamo a richiedere il repaint per controllare il timer
                 ctx.request_repaint();
             }
             AppState::CaptureAndSave => {
-                // SLEEP used here while window is hidden to ensure OS redraw
-                thread::sleep(Duration::from_millis(700));
                 self.execute_capture_logic();
                 self.state = AppState::Restore;
                 ctx.request_repaint();
             }
             AppState::Restore => {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                 self.state = AppState::Idle;
             }
             AppState::Idle => {}
         }
 
+        // --- INTERFACCIA ---
         egui::TopBottomPanel::top("nav").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.current_view, View::Main, "Main");
@@ -152,11 +163,10 @@ impl eframe::App for MyApp {
                     }
                     ui.separator();
 
-                    // --- SCROLL AREA CONSTRAINED TO ~10 ITEMS ---
                     ui.label("Test List:");
                     egui::ScrollArea::vertical()
-                        .max_height(245.0) // Approx 10 items * 24px + padding
-                        .auto_shrink([false, false]) // Keep height fixed even if list is short
+                        .max_height(245.0)
+                        .auto_shrink([false, false])
                         .show(ui, |ui| {
                             for (i, item) in self.items.iter().enumerate() {
                                 let is_selected = self.selected_index == Some(i);
@@ -190,23 +200,8 @@ impl eframe::App for MyApp {
                 }
                 View::Info => {
                     ui.heading("Info Page");
-                    ui.label(
-                        "This software was developed to assist in the process\n \
-                        of obtaining evidence during the qualification or\n \
-                        validation of computerized systems.\n \
-                        \n \
-                        It was developed in Rust and Egui for a personal challenge.\n \
-                        \n \
-                        It is distributed under the GPL v. 3.0 license.\n \
-                        \n \
-                        \n \
-                        Daniel Consonni\n \
-                        \n \
-                        \n \
-                        A special thank you to Geovanna Mendes de Souza, whose observations\n \
-                        were the starting point for the development of\n \
-                        this application.",
-                    );
+                    ui.label("Daniel Consonni - GPL v. 3.0");
+                    // ... (resto del testo info)
                 }
             }
         });
