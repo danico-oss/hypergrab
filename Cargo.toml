@@ -1,0 +1,18 @@
+[package]
+name = "hypergrab"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+iced = { version = "0.13", features = ["tokio", "image", "canvas"] }
+calamine = "0.26"
+rfd = "0.15"
+tokio = { version = "1.0", features = ["full"] }
+xcap = "0.0.14"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
