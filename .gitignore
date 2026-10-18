@@ -5,8 +5,8 @@
 hypergrab_settings.txt
 
 # Images produced by the capture tests
-esempi/*.jpg
+test-data/*.jpg
 
 # Personal test file: the versioned example list is
-# esempi/elenco_test.csv
+# test-data/test_list.csv
 Novo Documento de Texto.txt

@@ -59,14 +59,14 @@ T-02;Controllo dei parametri di processo
 T-03;Prova di accesso con utente non autorizzato
 ```
 
-A sample list is in `esempi/elenco_test.csv`.
+A sample list is in `test-data/test_list.csv`.
 
 In an Excel file the same layout in the first sheet is enough; a code stored as
 a number (for example `1003`) is used as `1003`, not as `1003.0`.
 
 ## How to use it
 
-1. "Open file…" and choose the list (`esempi/elenco_test.csv` for a try).
+1. "Open file…" and choose the list (`test-data/test_list.csv` for a try).
 2. Bring the application you want to document to the foreground.
 3. Select the test in the list and press **F12** (or use "Run capture").
    Hypergrab hides for about half a second and then comes back with the
