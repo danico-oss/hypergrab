@@ -53,10 +53,10 @@ ignored.
 Sample CSV:
 
 ```csv
-Codice;Descrizione
-T-01;Verifica iniziale dell'ambiente
-T-02;Controllo dei parametri di processo
-T-03;Prova di accesso con utente non autorizzato
+Code;Description
+T-01;Initial check of the environment
+T-02;Check of the process parameters
+T-03;Access attempt with an unauthorized user
 ```
 
 A sample list is in `test-data/test_list.csv`.
