@@ -304,14 +304,31 @@ fn carica_font() -> Result<ab_glyph::FontVec, String> {
 // Saving
 // ---------------------------------------------------------------------------
 
-/// Name of the JPG file for a test code.
-pub fn nome_file(codice: &str) -> String {
-    format!("{}.jpg", sanitizza(codice))
+/// Name of the JPG file for a test code and a serial number: `T-01-001.jpg`.
+///
+/// The serial number keeps the evidence of the same test distinct: every save
+/// writes a new file instead of overwriting the previous one.
+pub fn nome_file(codice: &str, seriale: u32) -> String {
+    format!("{}-{seriale:03}.jpg", sanitizza(codice))
 }
 
-/// Path of the JPG file: same folder as the list file, name = code.
+/// First free serial number of a code in the given folder: 1, 2, 3...
+///
+/// The numbering restarts for each test code, so `T-01` and `T-02` both begin
+/// at 001. The first unused number is used (a gap left by a deleted file is
+/// filled again).
+pub fn seriale_libero(cartella: &Path, codice: &str) -> u32 {
+    let mut seriale = 1;
+    while cartella.join(nome_file(codice, seriale)).exists() {
+        seriale += 1;
+    }
+    seriale
+}
+
+/// Path of the JPG file: same folder as the list file, name = code + serial
+/// number of the first file still free.
 pub fn percorso_salvataggio(cartella: &Path, codice: &str) -> PathBuf {
-    cartella.join(nome_file(codice))
+    cartella.join(nome_file(codice, seriale_libero(cartella, codice)))
 }
 
 /// Makes a code usable as a file name on Windows.
@@ -343,8 +360,7 @@ pub fn sanitizza(codice: &str) -> String {
     nome
 }
 
-/// Writes the image as JPEG (quality 90): the existing file is
-/// overwritten.
+/// Writes the image as JPEG (quality 90) in the given path.
 pub fn salva_jpg(immagine: &RgbImage, percorso: &Path) -> Result<(), String> {
     let file = std::fs::File::create(percorso).map_err(|e| e.to_string())?;
     let mut scrittura = std::io::BufWriter::new(file);
@@ -411,16 +427,60 @@ mod tests {
     }
 
     #[test]
-    fn nome_e_percorso_del_file() {
-        assert_eq!(nome_file("T-01"), "T-01.jpg");
+    fn nome_del_file_con_seriale() {
+        assert_eq!(nome_file("T-01", 1), "T-01-001.jpg");
+        assert_eq!(nome_file("T-01", 12), "T-01-012.jpg");
+        // Over 999 the numbering grows, it is not cut off.
+        assert_eq!(nome_file("T-01", 1000), "T-01-1000.jpg");
+        assert_eq!(nome_file("a/b", 3), "a_b-003.jpg");
+        assert_eq!(nome_file("CON", 1), "CON_-001.jpg");
+    }
+
+    /// Unique temporary folder for the tests.
+    fn cartella_di_prova(nome: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "hypergrab_{}_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+            nome
+        ))
+    }
+
+    #[test]
+    fn percorso_con_seriale_libero() {
+        let cartella = cartella_di_prova("seriale");
+        std::fs::create_dir_all(&cartella).unwrap();
+        let immagine = RgbImage::from_pixel(8, 6, Rgb([10u8, 20u8, 30u8]));
+
+        // Empty folder: the numbering starts at 001.
+        let primo = percorso_salvataggio(&cartella, "T-01");
+        assert_eq!(primo, cartella.join("T-01-001.jpg"));
+
+        // Once the file has been written, the next one takes the
+        // following number instead of overwriting it.
+        salva_jpg(&immagine, &primo).unwrap();
+        let secondo = percorso_salvataggio(&cartella, "T-01");
+        assert_eq!(secondo, cartella.join("T-01-002.jpg"));
+        salva_jpg(&immagine, &secondo).unwrap();
+        assert_eq!(seriale_libero(&cartella, "T-01"), 3);
+
+        // The numbering restarts for every code.
         assert_eq!(
-            percorso_salvataggio(Path::new("C:\\prove"), "T-01"),
-            PathBuf::from("C:\\prove\\T-01.jpg")
+            percorso_salvataggio(&cartella, "T-02"),
+            cartella.join("T-02-001.jpg")
         );
+
+        // A hole left by a deleted file is filled again.
+        std::fs::remove_file(&secondo).unwrap();
         assert_eq!(
-            percorso_salvataggio(Path::new("C:\\prove"), "a/b"),
-            PathBuf::from("C:\\prove\\a_b.jpg")
+            percorso_salvataggio(&cartella, "T-01"),
+            cartella.join("T-01-002.jpg")
         );
+
+        let _ = std::fs::remove_dir_all(&cartella);
     }
 
     #[test]

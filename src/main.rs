@@ -88,7 +88,6 @@ struct Hypergrab {
     /// While it holds, every pass asks for the window to be shown again.
     ripristino_fino: Option<Instant>,
     anteprima: Option<Anteprima>,
-    salvato: Option<PathBuf>,
 
     messaggio: String,
     messaggio_errore: bool,
@@ -112,7 +111,6 @@ impl Hypergrab {
             ricevitore: None,
             ripristino_fino: None,
             anteprima: None,
-            salvato: None,
             messaggio: t(lang, "Pronto.").to_string(),
             messaggio_errore: false,
             info_aperta: false,
@@ -166,7 +164,6 @@ impl Hypergrab {
                 self.percorso = Some(percorso);
                 // First test selected: the capture can start right away.
                 self.selezionato = if test.is_empty() { None } else { Some(0) };
-                self.salvato = None;
                 self.test = test;
             }
             Err(e) => {
@@ -289,7 +286,6 @@ impl Hypergrab {
                     finestra: finestra.clone(),
                     data_ora,
                 });
-                self.salvato = None;
                 self.messaggio(
                     format!("{} {finestra}", t(self.lang, "Cattura completata:")),
                     false,
@@ -322,7 +318,6 @@ impl Hypergrab {
                     format!("{} {}", t(self.lang, "Salvato:"), percorso.display()),
                     false,
                 );
-                self.salvato = Some(percorso);
             }
             Err(e) => {
                 self.messaggio(
@@ -479,10 +474,8 @@ impl Hypergrab {
                             }
                         });
                     if let Some(i) = scelta {
-                        if self.selezionato != Some(i) {
-                            // The test changes: the destination file changes as well.
-                            self.salvato = None;
-                        }
+                        // The test changes: the destination file changes as
+                        // well (the numbering of each code is its own).
                         self.selezionato = Some(i);
                     }
                 });
@@ -599,35 +592,15 @@ impl Hypergrab {
                     });
                     ui.add_space(6.0);
                     if let Some(destinazione) = self.destinazione() {
-                        // The path already written in this session is shown
-                        // in the highlight color, without any overwrite
-                        // warning.
-                        let appena_salvato = self.salvato.as_deref() == Some(destinazione.as_path());
-                        let esistente = destinazione.exists();
+                        // Path that "Salva JPG" would write now: the first
+                        // serial number still free for this test code.
                         let testo = tronca(
                             ui,
                             &destinazione.display().to_string(),
                             ui.available_width() - 8.0,
                             10.5,
                         );
-                        if appena_salvato {
-                            ui.label(
-                                egui::RichText::new(testo)
-                                    .size(10.5)
-                                    .color(theme::accent(dark)),
-                            );
-                        } else {
-                            theme::hint(ui, &testo);
-                            if esistente {
-                                let avviso =
-                                    t(self.lang, "Il file esistente verrà sovrascritto.");
-                                ui.label(
-                                    egui::RichText::new(avviso)
-                                        .size(10.5)
-                                        .color(theme::WARNING),
-                                );
-                            }
-                        }
+                        theme::hint(ui, &testo);
                     }
                 });
             });
@@ -692,7 +665,7 @@ impl Hypergrab {
                 for chiave in [
                     "Hypergrab è uno strumento di cattura di schermo pensato per accompagnare il processo di acquisizione di evidenze durante la qualificazione o la validazione di sistemi informatizzati.",
                     "Permette di importare un elenco di test da un file CSV o XLSX (prima colonna: codice del test, seconda colonna: descrizione) e di catturare la finestra dell'applicazione che resta in primo piano nascondendo temporaneamente Hypergrab.",
-                    "All'immagine viene aggiunta in basso a destra la data e l'ora di acquisizione; il file JPG viene salvato nella cartella del file di elenco, con nome uguale al codice del test.",
+                    "All'immagine viene aggiunta in basso a destra la data e l'ora di acquisizione; il file JPG viene salvato nella cartella del file di elenco, con nome uguale al codice del test seguito da un numero progressivo (-001, -002, ...): ogni salvataggio ha un file suo.",
                     "Sviluppato in Rust con Egui come sfida personale. Distribuito con licenza GNU GPL v3. Autore: Daniel Consonni. Un ringraziamento speciale a Geovanna Mendes de Souza, le cui osservazioni sono state il punto di partenza per lo sviluppo di questa applicazione.",
                 ] {
                     ui.label(egui::RichText::new(t(self.lang, chiave)).size(11.5));

@@ -103,7 +103,6 @@ static EN: &[(&str, &str)] = &[
     ("Nessun file importato.", "No file imported."),
     ("Salvato:", "Saved:"),
     ("Errore nel salvataggio:", "Save error:"),
-    ("Il file esistente verrà sovrascritto.", "The existing file will be overwritten."),
     ("Informazioni", "About"),
     ("Lingua", "Language"),
     ("Cambia tema", "Switch theme"),
@@ -116,8 +115,8 @@ static EN: &[(&str, &str)] = &[
         "It lets you import a list of tests from a CSV or XLSX file (first column: test code, second column: test description) and capture the window of the application that stays in the foreground while Hypergrab hides itself.",
     ),
     (
-        "All'immagine viene aggiunta in basso a destra la data e l'ora di acquisizione; il file JPG viene salvato nella cartella del file di elenco, con nome uguale al codice del test.",
-        "The acquisition date and time are added to the bottom right of the image; the JPG file is saved in the folder of the list file, named after the test code.",
+        "All'immagine viene aggiunta in basso a destra la data e l'ora di acquisizione; il file JPG viene salvato nella cartella del file di elenco, con nome uguale al codice del test seguito da un numero progressivo (-001, -002, ...): ogni salvataggio ha un file suo.",
+        "The acquisition date and time are added to the bottom right of the image; the JPG file is saved in the folder of the list file, named after the test code followed by a progressive number (-001, -002, ...), so that every save has a file of its own.",
     ),
     (
         "Sviluppato in Rust con Egui come sfida personale. Distribuito con licenza GNU GPL v3. Autore: Daniel Consonni. Un ringraziamento speciale a Geovanna Mendes de Souza, le cui osservazioni sono state il punto di partenza per lo sviluppo di questa applicazione.",
@@ -155,7 +154,6 @@ static PT: &[(&str, &str)] = &[
     ("Nessun file importato.", "Nenhum arquivo importado."),
     ("Salvato:", "Salvo:"),
     ("Errore nel salvataggio:", "Errore ao salvar:"),
-    ("Il file esistente verrà sovrascritto.", "O arquivo existente será sobrescrito."),
     ("Informazioni", "Informações"),
     ("Lingua", "Idioma"),
     ("Cambia tema", "Alternar tema"),
@@ -168,8 +166,8 @@ static PT: &[(&str, &str)] = &[
         "Permite importar uma lista de testes de um arquivo CSV ou XLSX (primeira coluna: código do teste, segunda coluna: descrição) e capturar a janela da aplicação que permanece em primeiro plano ocultando temporariamente o Hypergrab.",
     ),
     (
-        "All'immagine viene aggiunta in basso a destra la data e l'ora di acquisizione; il file JPG viene salvato nella cartella del file di elenco, con nome uguale al codice del test.",
-        "À imagem é adicionada, no canto inferior direito, a data e a hora da aquisição; o arquivo JPG é salvo na pasta do arquivo de lista, com nome igual ao código do teste.",
+        "All'immagine viene aggiunta in basso a destra la data e l'ora di acquisizione; il file JPG viene salvato nella cartella del file di elenco, con nome uguale al codice del test seguito da un numero progressivo (-001, -002, ...): ogni salvataggio ha un file suo.",
+        "À imagem é adicionada, no canto inferior direito, a data e a hora da aquisição; o arquivo JPG é salvo na pasta do arquivo de lista, com nome igual ao código do teste seguido de um número sequencial (-001, -002, ...), de modo que cada gravação tenha seu próprio arquivo.",
     ),
     (
         "Sviluppato in Rust con Egui come sfida personale. Distribuito con licenza GNU GPL v3. Autore: Daniel Consonni. Un ringraziamento speciale a Geovanna Mendes de Souza, le cui osservazioni sono state il punto di partenza per lo sviluppo di questa applicazione.",

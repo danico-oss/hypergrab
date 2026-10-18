@@ -15,7 +15,6 @@ pub const ACCENT_LIGHT: Color32 = Color32::from_rgb(0x21, 0x73, 0x46);
 pub const ACCENT_DARK: Color32 = Color32::from_rgb(0x35, 0xB1, 0x7A);
 
 pub const DANGER: Color32 = Color32::from_rgb(0xC0, 0x39, 0x2B);
-pub const WARNING: Color32 = Color32::from_rgb(0xE8, 0x8A, 0x00);
 
 pub fn accent(dark: bool) -> Color32 {
     if dark {

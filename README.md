@@ -30,8 +30,9 @@ its name.
   (Segoe UI and fallbacks).
 - **Preview and saving**: the preview shows exactly the image that will be
   written. "Save JPG" writes the file as JPEG (quality 90) in the **same folder
-  as the list file**, with the **name equal to the test code**; if the file
-  already exists it is overwritten and the preview points that out.
+  as the list file**, with the **name equal to the test code followed by a
+  progressive number** (`T-01-001.jpg`, `T-01-002.jpg`, …): the first serial
+  number still free is used, so no evidence is ever overwritten.
 - **Interface**: light (default) and dark theme, a compact style that also
   suits notebook screens, and the Italian / English / Brazilian Portuguese
   languages. The preferences (theme and language) are remembered in
@@ -43,7 +44,7 @@ Two columns, in this order:
 
 | Column | Content | Notes |
 | --- | --- | --- |
-| 1 | **Test code** | becomes the name of the JPG file |
+| 1 | **Test code** | becomes the name of the JPG file (`T-01` → `T-01-001.jpg`) |
 | 2 | **Test description** | optional |
 
 The "The first row is a header" checkbox (on by default) discards the first
@@ -73,8 +74,9 @@ a number (for example `1003`) is used as `1003`, not as `1003.0`.
    preview.
 4. Check the preview and press "Save JPG".
 
-The destination path is shown under the preview buttons, so you always know
-where the file will end up.
+The destination path is shown under the preview buttons: it is the first serial
+number still free for the selected test, so you always know where the file will
+end up.
 
 ## Technical notes
 
