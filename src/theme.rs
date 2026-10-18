@@ -308,7 +308,18 @@ pub fn big_button_state(
 ) -> egui::Response {
     let dark = ui.visuals().dark_mode;
     let a = accent(dark);
-    let size = Vec2::new(48.0, 38.0);
+    // La larghezza segue l'etichetta: le traduzioni piu' lunghe ("Executar
+    // captura") non devono uscire dal pulsante.
+    let testo_w = ui.fonts(|f| {
+        f.layout_no_wrap(
+            label.to_owned(),
+            FontId::proportional(10.0),
+            Color32::WHITE,
+        )
+        .size()
+        .x
+    });
+    let size = Vec2::new((testo_w + 18.0).max(48.0), 38.0);
     let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
     let painter = ui.painter();
 

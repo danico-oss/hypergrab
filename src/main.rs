@@ -6,8 +6,15 @@
 //! fotografare la finestra che resta in primo piano. All'immagine vengono uniti
 //! data e ora in basso a destra, poi il JPG viene salvato nella cartella del
 //! file di elenco con il nome del codice del test.
+//!
+//! Avviando il programma con un percorso di file come argomento l'elenco viene
+//! aperto subito; lo stesso accade trascinando un file sulla finestra.
+
+// Senza console: è un'applicazione con interfaccia grafica.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod capture;
+mod finestra;
 mod i18n;
 mod icon;
 mod reader;
@@ -18,6 +25,7 @@ use eframe::egui;
 use i18n::{t, Language};
 use reader::TestItem;
 use std::path::PathBuf;
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 use theme::Icon;
 
@@ -25,11 +33,30 @@ use theme::Icon;
 /// lasciare che l'applicazione sottostante torni in primo piano.
 const ATTESA_CATTURA: Duration = Duration::from_millis(650);
 
+/// Attesa aggiuntiva, dopo la precedente, perché il primo piano passi davvero a
+/// un'altra applicazione: senza di essa, se Windows non desse subito il primo
+/// piano all'applicazione sottostante, si fotograferebbe Hypergrab.
+const ATTESA_PRIMO_PIANO: Duration = Duration::from_millis(1500);
+
+/// Per quanto tempo, dopo la cattura, si continua a chiedere che la finestra
+/// torni visibile: il primo tentativo puo' andare perso.
+const RIPRISTINO: Duration = Duration::from_millis(400);
+
 enum Stato {
     /// Finestra visibile, nessuna cattura in corso.
     Pronto,
-    /// Finestra nascosta: la cattura avviene allo scadere dell'attesa.
-    InAttesa { scadenza: Instant },
+    /// Finestra nascosta e cattura in corso in un thread a parte.
+    InCorso,
+}
+
+/// Esito della cattura eseguita in un thread a parte.
+enum EsitoCattura {
+    Cattura {
+        immagine: image::RgbImage,
+        finestra: String,
+        data_ora: String,
+    },
+    Errore(String),
 }
 
 /// Immagine catturata, pronta per l'anteprima e per il salvataggio.
@@ -53,6 +80,13 @@ struct Hypergrab {
 
     // --- Cattura ---
     stato: Stato,
+    /// Finestra di Hypergrab, per nasconderla e rimostrarla senza dipendere dal
+    /// ciclo di disegno (mentre e' nascosta non riceve WM_PAINT).
+    finestra: Option<finestra::Finestra>,
+    /// Cattura in corso in un thread a parte.
+    ricevitore: Option<Receiver<EsitoCattura>>,
+    /// Finché vale, a ogni passaggio si chiede di rimostrare la finestra.
+    ripristino_fino: Option<Instant>,
     anteprima: Option<Anteprima>,
     salvato: Option<PathBuf>,
 
@@ -62,8 +96,10 @@ struct Hypergrab {
 }
 
 impl Hypergrab {
-    fn new(lang: Language, dark_mode: bool) -> Self {
-        Self {
+    /// Nuova applicazione; se `elenco_iniziale` è indicato (argomento della riga
+    /// di comando) l'elenco viene aperto subito.
+    fn new(lang: Language, dark_mode: bool, elenco_iniziale: Option<PathBuf>) -> Self {
+        let mut app = Self {
             lang,
             dark_mode,
             tema_applicato: false,
@@ -72,12 +108,19 @@ impl Hypergrab {
             test: Vec::new(),
             selezionato: None,
             stato: Stato::Pronto,
+            finestra: None,
+            ricevitore: None,
+            ripristino_fino: None,
             anteprima: None,
             salvato: None,
             messaggio: t(lang, "Pronto.").to_string(),
             messaggio_errore: false,
             info_aperta: false,
+        };
+        if let Some(percorso) = elenco_iniziale {
+            app.apri_elenco(percorso);
         }
+        app
     }
 
     fn messaggio(&mut self, testo: String, errore: bool) {
@@ -123,6 +166,7 @@ impl Hypergrab {
                 self.percorso = Some(percorso);
                 // Primo test selezionato: si puo' catturare subito.
                 self.selezionato = if test.is_empty() { None } else { Some(0) };
+                self.salvato = None;
                 self.test = test;
             }
             Err(e) => {
@@ -172,7 +216,11 @@ impl Hypergrab {
     // Cattura
     // -----------------------------------------------------------------------
 
-    /// Nasconde la finestra e programma la cattura.
+    /// Nasconde la finestra e avvia la cattura in un thread a parte.
+    ///
+    /// La cattura non può avvenire qui: mentre la finestra è nascosta Windows
+    /// non manda WM_PAINT e il ciclo di disegno si ferma, quindi nemmeno il
+    /// ritorno della finestra può dipendere da un passaggio successivo.
     fn avvia_cattura(&mut self, ctx: &egui::Context) {
         if self.test_selezionato().is_none() {
             self.messaggio(
@@ -181,72 +229,79 @@ impl Hypergrab {
             );
             return;
         }
+        let Some(finestra) = finestra::Finestra::attiva() else {
+            self.messaggio(t(self.lang, "Cattura fallita.").to_string(), true);
+            return;
+        };
+
         self.messaggio(
             t(self.lang, "Cattura in corso: la finestra torna a breve…").to_string(),
             false,
         );
-        self.stato = Stato::InAttesa {
-            scadenza: Instant::now() + ATTESA_CATTURA,
-        };
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        self.stato = Stato::InCorso;
+        self.finestra = Some(finestra);
 
-        // Con la finestra nascosta i ridisegni potrebbero diradarsi: un
-        // risveglio programmato garantisce che la cattura avvenga comunque.
+        let (invia, ricevi) = std::sync::mpsc::channel();
+        self.ricevitore = Some(ricevi);
+        let lang = self.lang;
         let ctx = ctx.clone();
         std::thread::spawn(move || {
+            // La finestra sparisce: l'applicazione da documentare torna in
+            // primo piano.
+            finestra.nascondi();
             std::thread::sleep(ATTESA_CATTURA);
+            // Se il primo piano non è ancora passato all'applicazione
+            // sottostante si aspetta ancora un poco: la cattura non deve
+            // riguardare Hypergrab.
+            let scadenza = Instant::now() + ATTESA_PRIMO_PIANO;
+            while Instant::now() < scadenza && !capture::primo_piano_pronto() {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            let esito = cattura_e_componi(lang);
+            // La finestra torna visibile anche se la cattura è fallita.
+            finestra.mostra();
+            let _ = invia.send(esito);
             ctx.request_repaint();
         });
     }
 
-    /// Esegue la cattura, compone data e ora e riporta la finestra in vista.
-    fn esegui_cattura(&mut self, ctx: &egui::Context) {
-        let esito = capture::cattura_finestra_primo_piano();
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-        self.stato = Stato::Pronto;
-
-        let mut cattura = match esito {
-            Ok(cattura) => cattura,
-            Err(e) => {
+    /// Mostra in anteprima l'esito della cattura.
+    fn applica_esito(&mut self, ctx: &egui::Context, esito: EsitoCattura) {
+        match esito {
+            EsitoCattura::Cattura {
+                immagine,
+                finestra,
+                data_ora,
+            } => {
+                let texture = ctx.load_texture(
+                    "anteprima",
+                    immagine_in_colori(&immagine),
+                    egui::TextureOptions::LINEAR,
+                );
+                let finestra = if finestra.is_empty() {
+                    t(self.lang, "schermo intero").to_string()
+                } else {
+                    finestra
+                };
+                self.anteprima = Some(Anteprima {
+                    immagine,
+                    texture,
+                    finestra: finestra.clone(),
+                    data_ora,
+                });
+                self.salvato = None;
+                self.messaggio(
+                    format!("{} {finestra}", t(self.lang, "Cattura completata:")),
+                    false,
+                );
+            }
+            EsitoCattura::Errore(e) => {
                 self.messaggio(
                     format!("{} {e}", t(self.lang, "Cattura fallita.")),
                     true,
                 );
-                return;
             }
-        };
-
-        let data_ora = capture::testo_data_ora(self.lang, chrono::Local::now());
-        if let Err(e) = capture::compone_data_ora(&mut cattura.immagine, &data_ora) {
-            self.messaggio(
-                format!("{} {e}", t(self.lang, "Cattura fallita.")),
-                true,
-            );
-            return;
         }
-
-        let texture = ctx.load_texture(
-            "anteprima",
-            immagine_in_colori(&cattura.immagine),
-            egui::TextureOptions::LINEAR,
-        );
-        let finestra = if cattura.finestra.is_empty() {
-            t(self.lang, "schermo intero").to_string()
-        } else {
-            cattura.finestra
-        };
-        self.anteprima = Some(Anteprima {
-            immagine: cattura.immagine,
-            texture,
-            finestra: finestra.clone(),
-            data_ora,
-        });
-        self.salvato = None;
-        self.messaggio(
-            format!("{} {finestra}", t(self.lang, "Cattura completata:")),
-            false,
-        );
     }
 
     /// Scrive il JPG nella cartella del file di elenco.
@@ -424,6 +479,10 @@ impl Hypergrab {
                             }
                         });
                     if let Some(i) = scelta {
+                        if self.selezionato != Some(i) {
+                            // Cambia il test: cambia anche il file di destinazione.
+                            self.salvato = None;
+                        }
                         self.selezionato = Some(i);
                     }
                 });
@@ -513,14 +572,10 @@ impl Hypergrab {
                         )));
                         ui.add_space(4.0);
                         let info = format!(
-                            "{} {} — {}{}",
+                            "{} {} — {}",
                             t(self.lang, "Cattura completata:"),
                             anteprima.finestra,
                             anteprima.data_ora,
-                            match &self.salvato {
-                                Some(_) => "",
-                                None => "",
-                            }
                         );
                         theme::hint(ui, &tronca(ui, &info, ui.available_width(), 10.5));
                     }
@@ -544,16 +599,34 @@ impl Hypergrab {
                     });
                     ui.add_space(6.0);
                     if let Some(destinazione) = self.destinazione() {
+                        // Il percorso già scritto in questa sessione è mostrato
+                        // nel colore di evidenziazione, senza avviso di
+                        // sovrascrittura.
+                        let appena_salvato = self.salvato.as_deref() == Some(destinazione.as_path());
                         let esistente = destinazione.exists();
-                        let testo = destinazione.display().to_string();
-                        theme::hint(ui, &tronca(ui, &testo, ui.available_width() - 8.0, 10.5));
-                        if esistente {
-                            let avviso = t(self.lang, "Il file esistente verrà sovrascritto.");
+                        let testo = tronca(
+                            ui,
+                            &destinazione.display().to_string(),
+                            ui.available_width() - 8.0,
+                            10.5,
+                        );
+                        if appena_salvato {
                             ui.label(
-                                egui::RichText::new(avviso)
+                                egui::RichText::new(testo)
                                     .size(10.5)
-                                    .color(theme::WARNING),
+                                    .color(theme::accent(dark)),
                             );
+                        } else {
+                            theme::hint(ui, &testo);
+                            if esistente {
+                                let avviso =
+                                    t(self.lang, "Il file esistente verrà sovrascritto.");
+                                ui.label(
+                                    egui::RichText::new(avviso)
+                                        .size(10.5)
+                                        .color(theme::WARNING),
+                                );
+                            }
                         }
                     }
                 });
@@ -645,19 +718,61 @@ impl eframe::App for Hypergrab {
             self.tema_applicato = true;
         }
 
-        // --- Cattura programmata ---
-        if let Stato::InAttesa { scadenza } = self.stato {
-            if Instant::now() >= scadenza {
-                self.esegui_cattura(ctx);
-            } else {
+        // --- Esito della cattura in corso in un thread a parte ---
+        let esito = self
+            .ricevitore
+            .as_ref()
+            .map(|ricevitore| ricevitore.try_recv());
+        match esito {
+            Some(Ok(esito)) => {
+                self.ricevitore = None;
+                self.stato = Stato::Pronto;
+                // La finestra è già stata rimostrata dal thread della cattura:
+                // si insiste ancora un momento e si richiede il primo piano.
+                self.ripristino_fino = Some(Instant::now() + RIPRISTINO);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                self.applica_esito(ctx, esito);
+            }
+            Some(Err(TryRecvError::Empty)) => {
                 ctx.request_repaint_after(Duration::from_millis(30));
+            }
+            Some(Err(TryRecvError::Disconnected)) => {
+                // Il thread della cattura è morto senza dare un esito.
+                self.ricevitore = None;
+                self.stato = Stato::Pronto;
+                self.ripristino_fino = Some(Instant::now() + RIPRISTINO);
+                self.messaggio(t(self.lang, "Cattura fallita.").to_string(), true);
+            }
+            None => {}
+        }
+
+        // --- Ripristino della finestra dopo la cattura ---
+        // Se il primo tentativo andasse perso la finestra resterebbe nascosta:
+        // viene rimostrata a ogni passaggio per qualche istante.
+        if let Some(fine) = self.ripristino_fino {
+            if let Some(finestra) = self.finestra {
+                finestra.mostra();
+            }
+            if Instant::now() >= fine {
+                self.ripristino_fino = None;
+                self.finestra = None;
+            } else {
+                ctx.request_repaint_after(Duration::from_millis(40));
             }
         }
 
         // --- Tasto F12 ---
+        // Ignorato mentre la finestra sta tornando visibile: un tasto rimasto
+        // premuto non deve far ripartire subito un'altra cattura.
         let f12 = ctx.input(|i| i.key_pressed(egui::Key::F12));
-        if f12 && matches!(self.stato, Stato::Pronto) {
+        if f12 && matches!(self.stato, Stato::Pronto) && self.ripristino_fino.is_none() {
             self.avvia_cattura(ctx);
+        }
+
+        // --- File trascinato sulla finestra ---
+        let trascinato = ctx.input(|i| i.raw.dropped_files.iter().find_map(|f| f.path.clone()));
+        if let Some(percorso) = trascinato {
+            self.apri_elenco(percorso);
         }
 
         let dark = self.dark_mode;
@@ -725,6 +840,26 @@ impl eframe::App for Hypergrab {
 /// tema nella barra alta).
 fn ctx_theme(ctx: &egui::Context, dark: bool) {
     theme::apply(ctx, dark);
+}
+
+/// Cattura la finestra che resta in primo piano e vi imprime data e ora.
+///
+/// Gira in un thread a parte: la finestra di Hypergrab è nascosta e in quel
+/// momento il ciclo di disegno dell'applicazione non deve fare nulla.
+fn cattura_e_componi(lang: Language) -> EsitoCattura {
+    let mut cattura = match capture::cattura_finestra_primo_piano() {
+        Ok(cattura) => cattura,
+        Err(e) => return EsitoCattura::Errore(e),
+    };
+    let data_ora = capture::testo_data_ora(lang, chrono::Local::now());
+    if let Err(e) = capture::compone_data_ora(&mut cattura.immagine, &data_ora) {
+        return EsitoCattura::Errore(e);
+    }
+    EsitoCattura::Cattura {
+        immagine: cattura.immagine,
+        finestra: cattura.finestra,
+        data_ora,
+    }
 }
 
 /// Converte l'immagine catturata nel formato di egui.
@@ -797,6 +932,11 @@ fn tronca(ui: &egui::Ui, testo: &str, larghezza: f32, dimensione: f32) -> String
 
 fn main() -> eframe::Result<()> {
     let preferenze = settings::load();
+    // Percorso eventualmente indicato sulla riga di comando: viene aperto subito.
+    let elenco_iniziale = std::env::args_os()
+        .nth(1)
+        .map(PathBuf::from)
+        .filter(|p| p.is_file());
     let sottotitolo = t(preferenze.lang, "Cattura schermo dei test");
     let titolo = format!("Hypergrab — {sottotitolo}");
 
@@ -816,6 +956,7 @@ fn main() -> eframe::Result<()> {
             Ok(Box::new(Hypergrab::new(
                 preferenze.lang,
                 preferenze.dark_mode,
+                elenco_iniziale,
             )))
         }),
     )

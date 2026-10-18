@@ -49,14 +49,14 @@ pub fn cattura_finestra_primo_piano() -> Result<Cattura, String> {
 #[cfg(windows)]
 pub fn cattura_finestra_primo_piano() -> Result<Cattura, String> {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetSystemMetrics, GetWindowRect, IsIconic, SM_CXVIRTUALSCREEN,
+        GetForegroundWindow, GetSystemMetrics, GetWindowRect, SM_CXVIRTUALSCREEN,
         SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
     };
 
     unsafe {
         // Finestra in primo piano: e' l'applicazione che rimane visibile.
         let finestra = GetForegroundWindow();
-        if !finestra.is_null() && IsIconic(finestra) == 0 {
+        if utilizzabile(finestra) {
             let mut rect = windows_sys::Win32::Foundation::RECT {
                 left: 0,
                 top: 0,
@@ -97,6 +97,41 @@ pub fn cattura_finestra_primo_piano() -> Result<Cattura, String> {
             })
             .ok_or_else(|| "cattura non riuscita".to_string())
     }
+}
+
+/// Vero se la finestra si può fotografare: esiste, è visibile, non è ridotta a
+/// icona e non è una finestra di questa applicazione.
+///
+/// Hypergrab si nasconde prima di catturare, ma Windows può impiegare un attimo
+/// a dare il primo piano all'applicazione sottostante: finché non è così la
+/// cattura riguarderebbe Hypergrab stessa.
+#[cfg(windows)]
+unsafe fn utilizzabile(finestra: windows_sys::Win32::Foundation::HWND) -> bool {
+    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetWindowThreadProcessId, IsIconic, IsWindowVisible,
+    };
+
+    if finestra.is_null() {
+        return false;
+    }
+    let mut processo = 0u32;
+    GetWindowThreadProcessId(finestra, &mut processo);
+    if processo == GetCurrentProcessId() {
+        return false;
+    }
+    IsWindowVisible(finestra) != 0 && IsIconic(finestra) == 0
+}
+
+/// Vero se in primo piano c'è già l'applicazione da documentare.
+#[cfg(windows)]
+pub fn primo_piano_pronto() -> bool {
+    unsafe { utilizzabile(windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow()) }
+}
+
+#[cfg(not(windows))]
+pub fn primo_piano_pronto() -> bool {
+    false
 }
 
 /// Copia dallo schermo il rettangolo indicato.
@@ -177,46 +212,54 @@ unsafe fn titolo_finestra(finestra: windows_sys::Win32::Foundation::HWND) -> Str
 // Composizione della data e dell'ora sull'immagine
 // ---------------------------------------------------------------------------
 
-/// Disegna data e ora in basso a destra, su un velo scuro per restare leggibili
-/// su qualunque sfondo. Il carattere viene preso dai font di sistema.
+/// Arancione brillante con cui vengono impresse data e ora sull'immagine.
+const ARANCIONE_DATA_ORA: Rgb<u8> = Rgb([255, 165, 0]);
+
+/// Colore del contorno attorno alla scritta.
+const CONTORNO_DATA_ORA: Rgb<u8> = Rgb([0, 0, 0]);
+
+/// Disegna data e ora in basso a destra, in arancione brillante e senza sfondo.
+///
+/// Il carattere viene preso dai font di sistema. Attorno alla scritta viene
+/// disegnato un contorno scuro pieno, che la stacca sia dai fondi chiari sia da
+/// quelli scuri senza bisogno di una targhetta colorata.
 pub fn compone_data_ora(immagine: &mut RgbImage, testo: &str) -> Result<(), String> {
     let font = carica_font()?;
     let (larghezza, altezza) = immagine.dimensions();
     let lato = larghezza.min(altezza) as f32;
-    let scala = ab_glyph::PxScale::from((lato * 0.045).clamp(13.0, 64.0));
+    let scala = ab_glyph::PxScale::from((lato * 0.05).clamp(15.0, 72.0));
     let (testo_w, testo_h) = imageproc::drawing::text_size(scala, &font, testo);
 
-    let margine = (lato * 0.02).clamp(6.0, 30.0) as i32;
-    let riempimento = (scala.y * 0.35).max(4.0) as i32;
-    let x1 = larghezza as i32 - margine;
-    let y1 = altezza as i32 - margine;
-    let x0 = x1 - testo_w as i32 - 2 * riempimento;
-    let y0 = y1 - testo_h as i32 - 2 * riempimento;
+    let margine = (lato * 0.02).clamp(8.0, 30.0) as i32;
+    let x = larghezza as i32 - margine - testo_w as i32;
+    let y = altezza as i32 - margine - testo_h as i32;
 
-    velo(immagine, x0, y0, x1, y1, 0.55);
-    imageproc::drawing::draw_text_mut(
-        immagine,
-        Rgb([255u8, 255u8, 255u8]),
-        x0 + riempimento,
-        y0 + riempimento,
-        scala,
-        &font,
-        testo,
-    );
-    Ok(())
-}
-
-/// Scurisce leggermente il rettangolo indicato (velo sotto il testo).
-fn velo(immagine: &mut RgbImage, x0: i32, y0: i32, x1: i32, y1: i32, alfa: f32) {
-    let (w, h) = (immagine.width() as i32, immagine.height() as i32);
-    for y in y0.max(0)..y1.min(h) {
-        for x in x0.max(0)..x1.min(w) {
-            let p = immagine.get_pixel_mut(x as u32, y as u32);
-            for canale in 0..3 {
-                p.0[canale] = (p.0[canale] as f32 * (1.0 - alfa)).round() as u8;
+    // Contorno: il testo scuro viene ripetuto a ogni pixel di scostamento
+    // intorno alla posizione, così attorno alle lettere resta un alone pieno.
+    let raggio = ((scala.y * 0.06).round() as i32).clamp(1, 3);
+    for dy in -raggio..=raggio {
+        for dx in -raggio..=raggio {
+            if dx == 0 && dy == 0 {
+                continue;
             }
+            imageproc::drawing::draw_text_mut(
+                immagine,
+                CONTORNO_DATA_ORA,
+                x + dx,
+                y + dy,
+                scala,
+                &font,
+                testo,
+            );
         }
     }
+
+    // Arancione brillante, disegnato due volte: i pixel di bordo non restano
+    // smorzati dall'antialiasing e la scritta riesce piena.
+    for _ in 0..2 {
+        imageproc::drawing::draw_text_mut(immagine, ARANCIONE_DATA_ORA, x, y, scala, &font, testo);
+    }
+    Ok(())
 }
 
 /// Cerca un carattere di sistema utilizzabile per il testo sull'immagine.
@@ -328,6 +371,13 @@ mod tests {
         Local.with_ymd_and_hms(2026, 10, 18, 14, 3, 22).unwrap()
     }
 
+    /// Una finestra che non esiste non si può fotografare.
+    #[cfg(windows)]
+    #[test]
+    fn finestra_inesistente_non_e_utilizzabile() {
+        assert!(!unsafe { utilizzabile(std::ptr::null_mut()) });
+    }
+
     #[test]
     fn data_e_ora_secondo_la_lingua() {
         assert_eq!(
@@ -411,7 +461,7 @@ mod tests {
         let prima = immagine.clone();
         compone_data_ora(&mut immagine, "18/10/2026 14:03:22").unwrap();
 
-        // In alto a sinistra non cambia nulla: la targhetta sta in basso a
+        // In alto a sinistra non cambia nulla: la scritta sta in basso a
         // destra.
         for y in 0..300 {
             for x in 0..400 {
@@ -419,20 +469,48 @@ mod tests {
             }
         }
 
-        // In basso a destra il velo scurisce molti pixel...
-        let scuriti = (300..600)
-            .flat_map(|y| (400..800).map(move |x| (x, y)))
-            .filter(|&(x, y)| {
-                immagine.get_pixel(x, y).0[0] < prima.get_pixel(x, y).0[0]
-            })
-            .count();
-        assert!(scuriti > 2000, "velo troppo piccolo: {scuriti} pixel");
+        let (mut arancioni, mut contorno) = (0, 0);
+        let (mut min_x, mut max_x, mut min_y, mut max_y) = (u32::MAX, 0, u32::MAX, 0);
+        for y in 300..600 {
+            for x in 400..800 {
+                let nuovo = immagine.get_pixel(x, y);
+                if nuovo == prima.get_pixel(x, y) {
+                    continue;
+                }
+                (min_x, max_x) = (min_x.min(x), max_x.max(x));
+                (min_y, max_y) = (min_y.min(y), max_y.max(y));
+                // Arancione brillante...
+                if nuovo.0[0] > 200 && nuovo.0[1] > 80 && nuovo.0[1] < 230 && nuovo.0[2] < 100 {
+                    arancioni += 1;
+                }
+                // ...con il contorno scuro che lo rende leggibile.
+                if nuovo.0.iter().all(|&canale| canale < 80) {
+                    contorno += 1;
+                }
+            }
+        }
+        assert!(
+            arancioni > 200,
+            "data e ora non in arancione brillante: {arancioni} pixel"
+        );
+        assert!(contorno > 100, "manca il contorno scuro: {contorno} pixel");
 
-        // ...e su quel velo restano i pixel bianchi del testo.
-        let testo = (300..600)
-            .flat_map(|y| (400..800).map(move |x| (x, y)))
-            .any(|(x, y)| immagine.get_pixel(x, y).0 == [255, 255, 255]);
-        assert!(testo, "il testo della data non e' stato disegnato");
+        // Attorno alla scritta non viene disegnato nulla: né un velo né una
+        // targhetta. I pixel a ridosso del rettangolo della scritta devono
+        // essere rimasti intatti.
+        let margine = 4;
+        for y in min_y.saturating_sub(margine)..=(max_y + margine).min(599) {
+            for x in min_x.saturating_sub(margine)..=(max_x + margine).min(799) {
+                if x >= min_x && x <= max_x && y >= min_y && y <= max_y {
+                    continue;
+                }
+                assert_eq!(
+                    immagine.get_pixel(x, y),
+                    prima.get_pixel(x, y),
+                    "c'e' qualcosa attorno alla scritta in ({x}, {y})"
+                );
+            }
+        }
     }
 
     /// Verifica la catena di copia dallo schermo (GetDC/BitBlt/GetDIBits)

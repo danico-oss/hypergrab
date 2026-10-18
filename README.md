@@ -22,8 +22,9 @@ test.
   Hypergrab per qualche istante e fotografano la finestra che in quel momento è
   in primo piano. Se la finestra non è utilizzabile (per esempio è minimizzata)
   si cattura l'intero schermo virtuale, cioè tutti i monitor insieme.
-- **Data e ora**: vengono disegnate in basso a destra sull'immagine, su un velo
-  scuro che le tiene leggibili su qualunque sfondo. Il formato segue la lingua
+- **Data e ora**: vengono disegnate in basso a destra sull'immagine in
+  **arancione brillante, senza sfondo**, con un contorno scuro pieno che le tiene
+  leggibili sia sui fondi chiari sia su quelli scuri. Il formato segue la lingua
   dell'interfaccia: `18/10/2026 14:03:22` in italiano e portoghese,
   `10/18/2026 14:03:22` in inglese. Il carattere è preso dai font di Windows
   (Segoe UI e ripieghi).
