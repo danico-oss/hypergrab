@@ -1,0 +1,9 @@
+# Compilati
+/target
+
+# Preferenze locali (non fanno parte del codice sorgente)
+hypergrab_settings.txt
+
+# File di prova personale: l'elenco di esempio versionato è
+# esempi/elenco_test.csv
+Novo Documento de Texto.txt

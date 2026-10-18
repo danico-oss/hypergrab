@@ -1,0 +1,6 @@
+Codice;Descrizione
+T-01;Verifica iniziale dell'ambiente
+T-02;Controllo dei parametri di processo
+T-03;Prova di accesso con utente non autorizzato
+T-04;Verifica della registrazione delle attivita
+T-05;Controllo della gestione delle eccezioni
