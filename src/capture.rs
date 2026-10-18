@@ -1,9 +1,9 @@
-//! Cattura della finestra in primo piano e composizione della data e dell'ora.
+//! Foreground window capture and composition of the date and time.
 //!
-//! La cattura usa le API di Windows: si prende la finestra che in quel momento
-//! sta in primo piano (Hypergrab si e' appena nascosto) e se ne copiano i pixel
-//! dallo schermo. Se la finestra non e' utilizzabile (minimizzata, chiusa fra
-//! il clic e la cattura) si ripiega sull'intero schermo virtuale.
+//! The capture uses the Windows APIs: it takes the window that at that moment
+//! is in the foreground (Hypergrab has just hidden itself) and copies its
+//! pixels from the screen. If the window is not usable (minimized, closed
+//! between the click and the capture) it falls back to the whole virtual screen.
 
 use chrono::{DateTime, Local};
 use image::{Rgb, RgbImage};
@@ -12,19 +12,19 @@ use std::path::{Path, PathBuf};
 
 use crate::i18n::Language;
 
-/// Risultato di una cattura.
+/// Result of a capture.
 pub struct Cattura {
-    /// Pixel catturati.
+    /// Captured pixels.
     pub immagine: RgbImage,
-    /// Titolo della finestra catturata (vuoto se si e' ripiegati sullo schermo).
+    /// Title of the captured window (empty if it fell back to the screen).
     pub finestra: String,
 }
 
 // ---------------------------------------------------------------------------
-// Data e ora
+// Date and time
 // ---------------------------------------------------------------------------
 
-/// Formato della data e dell'ora per la lingua attiva.
+/// Date and time format for the active language.
 pub fn formato_data_ora(lang: Language) -> &'static str {
     match lang {
         Language::En => "%m/%d/%Y %H:%M:%S",
@@ -32,13 +32,13 @@ pub fn formato_data_ora(lang: Language) -> &'static str {
     }
 }
 
-/// Data e ora come verranno impresse sull'immagine.
+/// Date and time as they will be stamped onto the image.
 pub fn testo_data_ora(lang: Language, quando: DateTime<Local>) -> String {
     quando.format(formato_data_ora(lang)).to_string()
 }
 
 // ---------------------------------------------------------------------------
-// Cattura
+// Capture
 // ---------------------------------------------------------------------------
 
 #[cfg(not(windows))]
@@ -54,7 +54,7 @@ pub fn cattura_finestra_primo_piano() -> Result<Cattura, String> {
     };
 
     unsafe {
-        // Finestra in primo piano: e' l'applicazione che rimane visibile.
+        // Foreground window: it is the application that remains visible.
         let finestra = GetForegroundWindow();
         if utilizzabile(finestra) {
             let mut rect = windows_sys::Win32::Foundation::RECT {
@@ -78,7 +78,7 @@ pub fn cattura_finestra_primo_piano() -> Result<Cattura, String> {
             }
         }
 
-        // Ripiego: intero schermo virtuale (tutti i monitor insieme).
+        // Fallback: whole virtual screen (all the monitors together).
         let (x, y) = (
             GetSystemMetrics(SM_XVIRTUALSCREEN),
             GetSystemMetrics(SM_YVIRTUALSCREEN),
@@ -99,12 +99,12 @@ pub fn cattura_finestra_primo_piano() -> Result<Cattura, String> {
     }
 }
 
-/// Vero se la finestra si può fotografare: esiste, è visibile, non è ridotta a
-/// icona e non è una finestra di questa applicazione.
+/// True if the window can be photographed: it exists, it is visible, it is not
+/// reduced to an icon and it is not a window of this application.
 ///
-/// Hypergrab si nasconde prima di catturare, ma Windows può impiegare un attimo
-/// a dare il primo piano all'applicazione sottostante: finché non è così la
-/// cattura riguarderebbe Hypergrab stessa.
+/// Hypergrab hides itself before capturing, but Windows may take a moment
+/// to give the foreground to the underlying application: until that happens
+/// the capture would concern Hypergrab itself.
 #[cfg(windows)]
 unsafe fn utilizzabile(finestra: windows_sys::Win32::Foundation::HWND) -> bool {
     use windows_sys::Win32::System::Threading::GetCurrentProcessId;
@@ -123,7 +123,7 @@ unsafe fn utilizzabile(finestra: windows_sys::Win32::Foundation::HWND) -> bool {
     IsWindowVisible(finestra) != 0 && IsIconic(finestra) == 0
 }
 
-/// Vero se in primo piano c'è già l'applicazione da documentare.
+/// True if the application to be documented is already in the foreground.
 #[cfg(windows)]
 pub fn primo_piano_pronto() -> bool {
     unsafe { utilizzabile(windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow()) }
@@ -134,7 +134,7 @@ pub fn primo_piano_pronto() -> bool {
     false
 }
 
-/// Copia dallo schermo il rettangolo indicato.
+/// Copies the indicated rectangle from the screen.
 #[cfg(windows)]
 unsafe fn copia_schermo(x: i32, y: i32, larghezza: i32, altezza: i32) -> Option<RgbImage> {
     use windows_sys::Win32::Graphics::Gdi::{
@@ -160,7 +160,7 @@ unsafe fn copia_schermo(x: i32, y: i32, larghezza: i32, altezza: i32) -> Option<
             let mut info: BITMAPINFO = std::mem::zeroed();
             info.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
             info.bmiHeader.biWidth = larghezza;
-            // Altezza negativa: le righe arrivano dall'alto verso il basso.
+            // Negative height: the rows arrive from top to bottom.
             info.bmiHeader.biHeight = -altezza;
             info.bmiHeader.biPlanes = 1;
             info.bmiHeader.biBitCount = 32;
@@ -177,8 +177,8 @@ unsafe fn copia_schermo(x: i32, y: i32, larghezza: i32, altezza: i32) -> Option<
                 DIB_RGB_COLORS,
             );
             if righe != 0 {
-                // Da BGRA a RGB: il canale alfa dei bitmap dello schermo non
-                // e' significativo.
+                // From BGRA to RGB: the alpha channel of the screen bitmaps is
+                // not significant.
                 let mut rgb = Vec::with_capacity(pixel.len() / 4 * 3);
                 for c in pixel.chunks_exact(4) {
                     rgb.extend_from_slice(&[c[2], c[1], c[0]]);
@@ -196,7 +196,7 @@ unsafe fn copia_schermo(x: i32, y: i32, larghezza: i32, altezza: i32) -> Option<
     risultato
 }
 
-/// Titolo della finestra, per i messaggi di stato.
+/// Window title, for the status messages.
 #[cfg(windows)]
 unsafe fn titolo_finestra(finestra: windows_sys::Win32::Foundation::HWND) -> String {
     use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowTextW;
@@ -209,20 +209,20 @@ unsafe fn titolo_finestra(finestra: windows_sys::Win32::Foundation::HWND) -> Str
 }
 
 // ---------------------------------------------------------------------------
-// Composizione della data e dell'ora sull'immagine
+// Composition of the date and time onto the image
 // ---------------------------------------------------------------------------
 
-/// Arancione brillante con cui vengono impresse data e ora sull'immagine.
+/// Bright orange with which the date and time are stamped onto the image.
 const ARANCIONE_DATA_ORA: Rgb<u8> = Rgb([255, 165, 0]);
 
-/// Colore del contorno attorno alla scritta.
+/// Color of the outline around the text.
 const CONTORNO_DATA_ORA: Rgb<u8> = Rgb([0, 0, 0]);
 
-/// Disegna data e ora in basso a destra, in arancione brillante e senza sfondo.
+/// Draws the date and time at the bottom right, in bright orange with no background.
 ///
-/// Il carattere viene preso dai font di sistema. Attorno alla scritta viene
-/// disegnato un contorno scuro pieno, che la stacca sia dai fondi chiari sia da
-/// quelli scuri senza bisogno di una targhetta colorata.
+/// The font is taken from the system fonts. Around the text a solid dark
+/// outline is drawn, which sets it off both from light and from dark
+/// backgrounds without the need for a colored label.
 pub fn compone_data_ora(immagine: &mut RgbImage, testo: &str) -> Result<(), String> {
     let font = carica_font()?;
     let (larghezza, altezza) = immagine.dimensions();
@@ -234,8 +234,8 @@ pub fn compone_data_ora(immagine: &mut RgbImage, testo: &str) -> Result<(), Stri
     let x = larghezza as i32 - margine - testo_w as i32;
     let y = altezza as i32 - margine - testo_h as i32;
 
-    // Contorno: il testo scuro viene ripetuto a ogni pixel di scostamento
-    // intorno alla posizione, così attorno alle lettere resta un alone pieno.
+    // Outline: the dark text is repeated at every offset pixel
+    // around the position, so that a solid halo stays around the letters.
     let raggio = ((scala.y * 0.06).round() as i32).clamp(1, 3);
     for dy in -raggio..=raggio {
         for dx in -raggio..=raggio {
@@ -254,17 +254,17 @@ pub fn compone_data_ora(immagine: &mut RgbImage, testo: &str) -> Result<(), Stri
         }
     }
 
-    // Arancione brillante, disegnato due volte: i pixel di bordo non restano
-    // smorzati dall'antialiasing e la scritta riesce piena.
+    // Bright orange, drawn twice: the edge pixels do not stay
+    // dampened by the antialiasing and the text comes out solid.
     for _ in 0..2 {
         imageproc::drawing::draw_text_mut(immagine, ARANCIONE_DATA_ORA, x, y, scala, &font, testo);
     }
     Ok(())
 }
 
-/// Cerca un carattere di sistema utilizzabile per il testo sull'immagine.
+/// Looks for a usable system font for the text on the image.
 fn carica_font() -> Result<ab_glyph::FontVec, String> {
-    // Segoe UI c'e' su ogni Windows moderno; gli altri sono ripieghi.
+    // Segoe UI is on every modern Windows; the others are fallbacks.
     const CANDIDATI: [&str; 6] = [
         "segoeui.ttf",
         "arial.ttf",
@@ -301,20 +301,20 @@ fn carica_font() -> Result<ab_glyph::FontVec, String> {
 }
 
 // ---------------------------------------------------------------------------
-// Salvataggio
+// Saving
 // ---------------------------------------------------------------------------
 
-/// Nome del file JPG per un codice di test.
+/// Name of the JPG file for a test code.
 pub fn nome_file(codice: &str) -> String {
     format!("{}.jpg", sanitizza(codice))
 }
 
-/// Percorso del file JPG: stessa cartella del file di elenco, nome = codice.
+/// Path of the JPG file: same folder as the list file, name = code.
 pub fn percorso_salvataggio(cartella: &Path, codice: &str) -> PathBuf {
     cartella.join(nome_file(codice))
 }
 
-/// Rende un codice utilizzabile come nome di file su Windows.
+/// Makes a code usable as a file name on Windows.
 pub fn sanitizza(codice: &str) -> String {
     const VIETATI: &str = "\\/:*?\"<>|";
     let mut nome: String = codice
@@ -327,12 +327,12 @@ pub fn sanitizza(codice: &str) -> String {
             }
         })
         .collect();
-    // Windows non ammette spazi e punti finali.
+    // Windows does not allow trailing spaces and dots.
     nome = nome.trim().trim_end_matches(|c| c == '.' || c == ' ').to_string();
     if nome.is_empty() {
         return "test".to_string();
     }
-    // Nomi riservati dal sistema (CON, PRN, ...): basta un suffisso.
+    // Names reserved by the system (CON, PRN, ...): a suffix is enough.
     const RISERVATI: [&str; 22] = [
         "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
         "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
@@ -343,8 +343,8 @@ pub fn sanitizza(codice: &str) -> String {
     nome
 }
 
-/// Scrive l'immagine in JPEG (qualita' 90): il file esistente viene
-/// sovrascritto.
+/// Writes the image as JPEG (quality 90): the existing file is
+/// overwritten.
 pub fn salva_jpg(immagine: &RgbImage, percorso: &Path) -> Result<(), String> {
     let file = std::fs::File::create(percorso).map_err(|e| e.to_string())?;
     let mut scrittura = std::io::BufWriter::new(file);
@@ -371,7 +371,7 @@ mod tests {
         Local.with_ymd_and_hms(2026, 10, 18, 14, 3, 22).unwrap()
     }
 
-    /// Una finestra che non esiste non si può fotografare.
+    /// A window that does not exist cannot be photographed.
     #[cfg(windows)]
     #[test]
     fn finestra_inesistente_non_e_utilizzabile() {
@@ -401,11 +401,11 @@ mod tests {
         assert_eq!(sanitizza("a/b\\c"), "a_b_c");
         assert_eq!(sanitizza("a:b*c?d\"e<f>g|h"), "a_b_c_d_e_f_g_h");
         assert_eq!(sanitizza("prova."), "prova");
-        // Codice vuoto o fatto di soli caratteri vietati: nome di ripiego.
+        // Empty code or made only of forbidden characters: fallback name.
         assert_eq!(sanitizza(""), "test");
         assert_eq!(sanitizza("///"), "___");
         assert_eq!(sanitizza("   "), "test");
-        // Nomi riservati dal sistema.
+        // Names reserved by the system.
         assert_eq!(sanitizza("CON"), "CON_");
         assert_eq!(sanitizza("com1"), "com1_");
     }
@@ -442,7 +442,7 @@ mod tests {
         let letto = image::open(&path).unwrap();
         assert_eq!(letto.width(), 64);
         assert_eq!(letto.height(), 40);
-        // Il file deve essere un JPEG vero: la firma inizia con FF D8.
+        // The file must be a real JPEG: the signature starts with FF D8.
         let bytes = std::fs::read(&path).unwrap();
         assert_eq!(&bytes[0..2], &[0xFF, 0xD8]);
         let _ = std::fs::remove_file(&path);
@@ -450,8 +450,8 @@ mod tests {
 
     #[test]
     fn compone_data_e_ora_in_basso_a_destra() {
-        // Il test usa il carattere di sistema: se non c'e' (sistema non
-        // Windows), viene saltato.
+        // The test uses the system font: if it is missing (non-Windows
+        // system), it is skipped.
         let Ok(_) = carica_font() else {
             eprintln!("carattere di sistema assente: verifica saltata");
             return;
@@ -461,8 +461,8 @@ mod tests {
         let prima = immagine.clone();
         compone_data_ora(&mut immagine, "18/10/2026 14:03:22").unwrap();
 
-        // In alto a sinistra non cambia nulla: la scritta sta in basso a
-        // destra.
+        // At the top left nothing changes: the text is at the bottom
+        // right.
         for y in 0..300 {
             for x in 0..400 {
                 assert_eq!(immagine.get_pixel(x, y), prima.get_pixel(x, y));
@@ -479,11 +479,11 @@ mod tests {
                 }
                 (min_x, max_x) = (min_x.min(x), max_x.max(x));
                 (min_y, max_y) = (min_y.min(y), max_y.max(y));
-                // Arancione brillante...
+                // Bright orange...
                 if nuovo.0[0] > 200 && nuovo.0[1] > 80 && nuovo.0[1] < 230 && nuovo.0[2] < 100 {
                     arancioni += 1;
                 }
-                // ...con il contorno scuro che lo rende leggibile.
+                // ...with the dark outline that makes it readable.
                 if nuovo.0.iter().all(|&canale| canale < 80) {
                     contorno += 1;
                 }
@@ -495,9 +495,9 @@ mod tests {
         );
         assert!(contorno > 100, "manca il contorno scuro: {contorno} pixel");
 
-        // Attorno alla scritta non viene disegnato nulla: né un velo né una
-        // targhetta. I pixel a ridosso del rettangolo della scritta devono
-        // essere rimasti intatti.
+        // Around the text nothing is drawn: neither a veil nor a
+        // label. The pixels close to the rectangle of the text must
+        // have remained intact.
         let margine = 4;
         for y in min_y.saturating_sub(margine)..=(max_y + margine).min(599) {
             for x in min_x.saturating_sub(margine)..=(max_x + margine).min(799) {
@@ -513,9 +513,9 @@ mod tests {
         }
     }
 
-    /// Verifica la catena di copia dallo schermo (GetDC/BitBlt/GetDIBits)
-    /// senza dipendere dalla finestra in primo piano: copia un angolo di
-    /// schermo. In un ambiente senza schermo il test viene saltato.
+    /// Verifies the copy chain from the screen (GetDC/BitBlt/GetDIBits)
+    /// without depending on the foreground window: it copies a corner of the
+    /// screen. In an environment with no screen the test is skipped.
     #[test]
     #[cfg(windows)]
     fn copia_una_porzione_di_schermo() {

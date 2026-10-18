@@ -1,16 +1,16 @@
-//! Hypergrab: cattura di schermo dei test.
+//! Hypergrab: screen capture of tests.
 //!
-//! L'applicazione importa un elenco di test da un file CSV o XLSX (prima
-//! colonna il codice, seconda colonna la descrizione), permette di selezionare
-//! un test e, con il pulsante "Esegui cattura" o il tasto F12, si nasconde per
-//! fotografare la finestra che resta in primo piano. All'immagine vengono uniti
-//! data e ora in basso a destra, poi il JPG viene salvato nella cartella del
-//! file di elenco con il nome del codice del test.
+//! The application imports a list of tests from a CSV or XLSX file (the first
+//! column holds the code, the second the description), lets you select a test
+//! and, with the "Esegui cattura" button or the F12 key, hides itself to
+//! photograph the window that stays in the foreground. Date and time are
+//! merged into the image at the bottom right, then the JPG is saved in the
+//! folder of the list file under the name of the test code.
 //!
-//! Avviando il programma con un percorso di file come argomento l'elenco viene
-//! aperto subito; lo stesso accade trascinando un file sulla finestra.
+//! Starting the program with a file path as an argument opens the list right
+//! away; the same happens when a file is dragged onto the window.
 
-// Senza console: è un'applicazione con interfaccia grafica.
+// No console: this is an application with a graphical interface.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod capture;
@@ -29,27 +29,27 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 use theme::Icon;
 
-/// Attesa fra il momento in cui la finestra si nasconde e la cattura: serve a
-/// lasciare che l'applicazione sottostante torni in primo piano.
+/// Delay between the moment the window hides itself and the capture: it lets
+/// the underlying application come back to the foreground.
 const ATTESA_CATTURA: Duration = Duration::from_millis(650);
 
-/// Attesa aggiuntiva, dopo la precedente, perché il primo piano passi davvero a
-/// un'altra applicazione: senza di essa, se Windows non desse subito il primo
-/// piano all'applicazione sottostante, si fotograferebbe Hypergrab.
+/// Additional delay, after the previous one, so that the foreground really
+/// passes to another application: without it, if Windows did not give the
+/// foreground to the underlying one at once, Hypergrab would be photographed.
 const ATTESA_PRIMO_PIANO: Duration = Duration::from_millis(1500);
 
-/// Per quanto tempo, dopo la cattura, si continua a chiedere che la finestra
-/// torni visibile: il primo tentativo puo' andare perso.
+/// How long, after the capture, we keep asking for the window to become
+/// visible again: the first attempt may be lost.
 const RIPRISTINO: Duration = Duration::from_millis(400);
 
 enum Stato {
-    /// Finestra visibile, nessuna cattura in corso.
+    /// Window visible, no capture in progress.
     Pronto,
-    /// Finestra nascosta e cattura in corso in un thread a parte.
+    /// Window hidden and capture in progress on a separate thread.
     InCorso,
 }
 
-/// Esito della cattura eseguita in un thread a parte.
+/// Outcome of the capture performed on a separate thread.
 enum EsitoCattura {
     Cattura {
         immagine: image::RgbImage,
@@ -59,7 +59,7 @@ enum EsitoCattura {
     Errore(String),
 }
 
-/// Immagine catturata, pronta per l'anteprima e per il salvataggio.
+/// Captured image, ready for the preview and for saving.
 struct Anteprima {
     immagine: image::RgbImage,
     texture: egui::TextureHandle,
@@ -72,20 +72,20 @@ struct Hypergrab {
     dark_mode: bool,
     tema_applicato: bool,
 
-    // --- Elenco dei test ---
+    // --- Test list ---
     percorso: Option<PathBuf>,
     intestazione: bool,
     test: Vec<TestItem>,
     selezionato: Option<usize>,
 
-    // --- Cattura ---
+    // --- Capture ---
     stato: Stato,
-    /// Finestra di Hypergrab, per nasconderla e rimostrarla senza dipendere dal
-    /// ciclo di disegno (mentre e' nascosta non riceve WM_PAINT).
+    /// Hypergrab window, to hide it and show it again without depending on the
+    /// drawing loop (while it is hidden it receives no WM_PAINT).
     finestra: Option<finestra::Finestra>,
-    /// Cattura in corso in un thread a parte.
+    /// Capture in progress on a separate thread.
     ricevitore: Option<Receiver<EsitoCattura>>,
-    /// Finché vale, a ogni passaggio si chiede di rimostrare la finestra.
+    /// While it holds, every pass asks for the window to be shown again.
     ripristino_fino: Option<Instant>,
     anteprima: Option<Anteprima>,
     salvato: Option<PathBuf>,
@@ -96,8 +96,8 @@ struct Hypergrab {
 }
 
 impl Hypergrab {
-    /// Nuova applicazione; se `elenco_iniziale` è indicato (argomento della riga
-    /// di comando) l'elenco viene aperto subito.
+    /// New application; if `elenco_iniziale` is given (command line argument)
+    /// the list is opened right away.
     fn new(lang: Language, dark_mode: bool, elenco_iniziale: Option<PathBuf>) -> Self {
         let mut app = Self {
             lang,
@@ -129,11 +129,11 @@ impl Hypergrab {
     }
 
     // -----------------------------------------------------------------------
-    // Elenco dei test
+    // Test list
     // -----------------------------------------------------------------------
 
-    /// Apre un elenco di test e lo mostra. In caso di errore lo segnala senza
-    /// perdere l'elenco gia' caricato.
+    /// Opens a test list and shows it. In case of error it reports it without
+    /// losing the list already loaded.
     fn apri_elenco(&mut self, percorso: PathBuf) {
         match reader::leggi_elenco(&percorso, self.intestazione) {
             Ok(test) => {
@@ -164,7 +164,7 @@ impl Hypergrab {
                     );
                 }
                 self.percorso = Some(percorso);
-                // Primo test selezionato: si puo' catturare subito.
+                // First test selected: the capture can start right away.
                 self.selezionato = if test.is_empty() { None } else { Some(0) };
                 self.salvato = None;
                 self.test = test;
@@ -178,8 +178,8 @@ impl Hypergrab {
         }
     }
 
-    /// Rilegge il file gia' aperto (per esempio dopo aver cambiato l'opzione
-    /// sull'intestazione).
+    /// Re-reads the file already open (for example after changing the header
+    /// option).
     fn rileggi_elenco(&mut self) {
         if let Some(percorso) = self.percorso.clone() {
             let codice = self.test.get(self.selezionato.unwrap_or(0)).map(|t| t.code.clone());
@@ -196,7 +196,7 @@ impl Hypergrab {
         self.selezionato.and_then(|i| self.test.get(i))
     }
 
-    /// Cartella in cui salvare il JPG: quella del file di elenco.
+    /// Folder where the JPG is saved: the one of the list file.
     fn cartella_salvataggio(&self) -> Option<PathBuf> {
         let percorso = self.percorso.as_ref()?;
         match percorso.parent() {
@@ -205,7 +205,7 @@ impl Hypergrab {
         }
     }
 
-    /// Percorso del JPG che verrebbe scritto adesso.
+    /// Path of the JPG that would be written right now.
     fn destinazione(&self) -> Option<PathBuf> {
         let cartella = self.cartella_salvataggio()?;
         let codice = &self.test_selezionato()?.code;
@@ -213,14 +213,14 @@ impl Hypergrab {
     }
 
     // -----------------------------------------------------------------------
-    // Cattura
+    // Capture
     // -----------------------------------------------------------------------
 
-    /// Nasconde la finestra e avvia la cattura in un thread a parte.
+    /// Hides the window and starts the capture on a separate thread.
     ///
-    /// La cattura non può avvenire qui: mentre la finestra è nascosta Windows
-    /// non manda WM_PAINT e il ciclo di disegno si ferma, quindi nemmeno il
-    /// ritorno della finestra può dipendere da un passaggio successivo.
+    /// The capture cannot happen here: while the window is hidden Windows
+    /// sends no WM_PAINT and the drawing loop stops, so not even the return
+    /// of the window can depend on a later pass.
     fn avvia_cattura(&mut self, ctx: &egui::Context) {
         if self.test_selezionato().is_none() {
             self.messaggio(
@@ -246,26 +246,26 @@ impl Hypergrab {
         let lang = self.lang;
         let ctx = ctx.clone();
         std::thread::spawn(move || {
-            // La finestra sparisce: l'applicazione da documentare torna in
-            // primo piano.
+            // The window disappears: the application to be documented comes
+            // back to the foreground.
             finestra.nascondi();
             std::thread::sleep(ATTESA_CATTURA);
-            // Se il primo piano non è ancora passato all'applicazione
-            // sottostante si aspetta ancora un poco: la cattura non deve
-            // riguardare Hypergrab.
+            // If the foreground has not passed to the underlying application
+            // yet, we wait a little longer: the capture must not be about
+            // Hypergrab.
             let scadenza = Instant::now() + ATTESA_PRIMO_PIANO;
             while Instant::now() < scadenza && !capture::primo_piano_pronto() {
                 std::thread::sleep(Duration::from_millis(50));
             }
             let esito = cattura_e_componi(lang);
-            // La finestra torna visibile anche se la cattura è fallita.
+            // The window becomes visible again even if the capture failed.
             finestra.mostra();
             let _ = invia.send(esito);
             ctx.request_repaint();
         });
     }
 
-    /// Mostra in anteprima l'esito della cattura.
+    /// Shows the outcome of the capture in the preview.
     fn applica_esito(&mut self, ctx: &egui::Context, esito: EsitoCattura) {
         match esito {
             EsitoCattura::Cattura {
@@ -304,7 +304,7 @@ impl Hypergrab {
         }
     }
 
-    /// Scrive il JPG nella cartella del file di elenco.
+    /// Writes the JPG into the folder of the list file.
     fn salva(&mut self) {
         let Some(percorso) = self.destinazione() else {
             self.messaggio(
@@ -334,17 +334,17 @@ impl Hypergrab {
     }
 
     // -----------------------------------------------------------------------
-    // Interfaccia
+    // Interface
     // -----------------------------------------------------------------------
 
     fn barra_alta(&mut self, ui: &mut egui::Ui) {
         let dark = self.dark_mode;
         ui.horizontal(|ui| {
-            // Simbolo dell'applicazione: la cornice di cattura.
+            // Application symbol: the capture frame.
             let (rect, _) = ui.allocate_exact_size(egui::vec2(26.0, 26.0), egui::Sense::hover());
             theme::draw_icon(ui.painter(), Icon::Capture, rect, theme::accent(dark), 1.8);
 
-            // Nome e sottotitolo, in nero pieno nel tema chiaro.
+            // Name and subtitle, in solid black in the light theme.
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
                 ui.label(
@@ -401,19 +401,19 @@ impl Hypergrab {
         });
     }
 
-    /// Allinea i messaggi gia' mostrati alla lingua appena scelta.
+    /// Aligns the messages already shown to the language just chosen.
     fn aggiorna_lingua_messaggi(&mut self, lingua: Language) {
         if self.messaggio == t(Language::It, "Pronto.") {
             self.messaggio = t(lingua, "Pronto.").to_string();
         }
     }
 
-    /// Colonna di sinistra: importazione ed elenco dei test.
+    /// Left column: import and test list.
     fn colonna_elenco(&mut self, ui: &mut egui::Ui, disponibile: egui::Vec2) {
         let dark = self.dark_mode;
         ui.allocate_ui(disponibile, |ui| {
             ui.vertical(|ui| {
-                // --- Importazione ---
+                // --- Import ---
                 theme::card(ui, |ui| {
                     ui.set_width(ui.available_width());
                     theme::section_title(ui, t(self.lang, "Importa elenco test"));
@@ -455,7 +455,7 @@ impl Hypergrab {
 
                 ui.add_space(6.0);
 
-                // --- Elenco ---
+                // --- List ---
                 theme::card(ui, |ui| {
                     ui.set_width(ui.available_width());
                     theme::section_title(ui, t(self.lang, "Elenco test"));
@@ -480,7 +480,7 @@ impl Hypergrab {
                         });
                     if let Some(i) = scelta {
                         if self.selezionato != Some(i) {
-                            // Cambia il test: cambia anche il file di destinazione.
+                            // The test changes: the destination file changes as well.
                             self.salvato = None;
                         }
                         self.selezionato = Some(i);
@@ -490,7 +490,7 @@ impl Hypergrab {
         });
     }
 
-    /// Colonna di destra: comando di cattura, anteprima e salvataggio.
+    /// Right column: capture command, preview and saving.
     fn colonna_cattura(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let dark = self.dark_mode;
         let pronto = matches!(self.stato, Stato::Pronto);
@@ -599,9 +599,9 @@ impl Hypergrab {
                     });
                     ui.add_space(6.0);
                     if let Some(destinazione) = self.destinazione() {
-                        // Il percorso già scritto in questa sessione è mostrato
-                        // nel colore di evidenziazione, senza avviso di
-                        // sovrascrittura.
+                        // The path already written in this session is shown
+                        // in the highlight color, without any overwrite
+                        // warning.
                         let appena_salvato = self.salvato.as_deref() == Some(destinazione.as_path());
                         let esistente = destinazione.exists();
                         let testo = tronca(
@@ -710,7 +710,7 @@ impl Hypergrab {
 
 impl eframe::App for Hypergrab {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Scala compatta, adatta anche agli schermi dei notebook.
+        // Compact scale, also suitable for laptop screens.
         ctx.set_pixels_per_point(1.0);
 
         if !self.tema_applicato {
@@ -718,7 +718,7 @@ impl eframe::App for Hypergrab {
             self.tema_applicato = true;
         }
 
-        // --- Esito della cattura in corso in un thread a parte ---
+        // --- Outcome of the capture running on a separate thread ---
         let esito = self
             .ricevitore
             .as_ref()
@@ -727,8 +727,8 @@ impl eframe::App for Hypergrab {
             Some(Ok(esito)) => {
                 self.ricevitore = None;
                 self.stato = Stato::Pronto;
-                // La finestra è già stata rimostrata dal thread della cattura:
-                // si insiste ancora un momento e si richiede il primo piano.
+                // The window has already been shown again by the capture thread:
+                // we insist a little longer and request the foreground.
                 self.ripristino_fino = Some(Instant::now() + RIPRISTINO);
                 ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                 self.applica_esito(ctx, esito);
@@ -737,7 +737,7 @@ impl eframe::App for Hypergrab {
                 ctx.request_repaint_after(Duration::from_millis(30));
             }
             Some(Err(TryRecvError::Disconnected)) => {
-                // Il thread della cattura è morto senza dare un esito.
+                // The capture thread died without producing an outcome.
                 self.ricevitore = None;
                 self.stato = Stato::Pronto;
                 self.ripristino_fino = Some(Instant::now() + RIPRISTINO);
@@ -746,9 +746,9 @@ impl eframe::App for Hypergrab {
             None => {}
         }
 
-        // --- Ripristino della finestra dopo la cattura ---
-        // Se il primo tentativo andasse perso la finestra resterebbe nascosta:
-        // viene rimostrata a ogni passaggio per qualche istante.
+        // --- Restoring the window after the capture ---
+        // If the first attempt were lost the window would stay hidden: it is
+        // shown again on every pass for a short while.
         if let Some(fine) = self.ripristino_fino {
             if let Some(finestra) = self.finestra {
                 finestra.mostra();
@@ -761,15 +761,15 @@ impl eframe::App for Hypergrab {
             }
         }
 
-        // --- Tasto F12 ---
-        // Ignorato mentre la finestra sta tornando visibile: un tasto rimasto
-        // premuto non deve far ripartire subito un'altra cattura.
+        // --- F12 key ---
+        // Ignored while the window is coming back to view: a key left held
+        // down must not start another capture right away.
         let f12 = ctx.input(|i| i.key_pressed(egui::Key::F12));
         if f12 && matches!(self.stato, Stato::Pronto) && self.ripristino_fino.is_none() {
             self.avvia_cattura(ctx);
         }
 
-        // --- File trascinato sulla finestra ---
+        // --- File dragged onto the window ---
         let trascinato = ctx.input(|i| i.raw.dropped_files.iter().find_map(|f| f.path.clone()));
         if let Some(percorso) = trascinato {
             self.apri_elenco(percorso);
@@ -777,7 +777,7 @@ impl eframe::App for Hypergrab {
 
         let dark = self.dark_mode;
 
-        // --- Barra alta (sfondo del tema) ---
+        // --- Top bar (theme background) ---
         let frame_alto = egui::Frame::new()
             .fill(theme::ribbon_bg(dark))
             .inner_margin(egui::Margin {
@@ -792,7 +792,7 @@ impl eframe::App for Hypergrab {
                 self.barra_alta(ui);
             });
 
-        // --- Barra di stato ---
+        // --- Status bar ---
         let frame_basso = egui::Frame::new()
             .fill(theme::ribbon_bg(dark))
             .inner_margin(egui::Margin {
@@ -807,7 +807,7 @@ impl eframe::App for Hypergrab {
                 self.barra_stato(ui);
             });
 
-        // --- Area centrale: elenco a sinistra, cattura a destra ---
+        // --- Central area: list on the left, capture on the right ---
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add_space(4.0);
             let disponibile = ui.available_size();
@@ -818,7 +818,7 @@ impl eframe::App for Hypergrab {
                     egui::vec2(larghezza_elenco, disponibile.y - 6.0),
                 );
                 ui.add_space(6.0);
-                // La colonna di destra prende tutta la larghezza rimasta.
+                // The right column takes all the remaining width.
                 let rimasto = ui.available_width();
                 ui.allocate_ui(egui::vec2(rimasto, disponibile.y - 6.0), |ui| {
                     self.colonna_cattura(ui, ctx);
@@ -829,23 +829,23 @@ impl eframe::App for Hypergrab {
         self.finestra_info(ctx);
     }
 
-    /// Colore di fondo della finestra: segue il tema, cosi' eventuali aree
-    /// trasparenti non mostrano il grigio scuro predefinito di eframe.
+    /// Background color of the window: it follows the theme, so that any
+    /// transparent areas do not show the default dark grey of eframe.
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         theme::panel_bg(self.dark_mode).to_normalized_gamma_f32()
     }
 }
 
-/// Applica il tema e tiene traccia dell'applicazione (usata dal pulsante del
-/// tema nella barra alta).
+/// Applies the theme and keeps track of the application (used by the theme
+/// button in the top bar).
 fn ctx_theme(ctx: &egui::Context, dark: bool) {
     theme::apply(ctx, dark);
 }
 
-/// Cattura la finestra che resta in primo piano e vi imprime data e ora.
+/// Captures the window that stays in the foreground and prints date and time on it.
 ///
-/// Gira in un thread a parte: la finestra di Hypergrab è nascosta e in quel
-/// momento il ciclo di disegno dell'applicazione non deve fare nulla.
+/// It runs on a separate thread: the Hypergrab window is hidden, so at that
+/// moment the drawing loop of the application must do nothing.
 fn cattura_e_componi(lang: Language) -> EsitoCattura {
     let mut cattura = match capture::cattura_finestra_primo_piano() {
         Ok(cattura) => cattura,
@@ -862,7 +862,7 @@ fn cattura_e_componi(lang: Language) -> EsitoCattura {
     }
 }
 
-/// Converte l'immagine catturata nel formato di egui.
+/// Converts the captured image into the egui format.
 fn immagine_in_colori(immagine: &image::RgbImage) -> egui::ColorImage {
     egui::ColorImage::from_rgb(
         [immagine.width() as usize, immagine.height() as usize],
@@ -870,7 +870,7 @@ fn immagine_in_colori(immagine: &image::RgbImage) -> egui::ColorImage {
     )
 }
 
-/// Una riga dell'elenco dei test: codice e descrizione, selezione a cornice.
+/// One row of the test list: code and description, selection as a frame.
 fn riga_test(ui: &mut egui::Ui, item: &TestItem, selezionato: bool, dark: bool) -> egui::Response {
     let altezza = 38.0;
     let (rect, risposta) =
@@ -897,7 +897,7 @@ fn riga_test(ui: &mut egui::Ui, item: &TestItem, selezionato: bool, dark: bool) 
         theme::muted(dark),
     );
 
-    // La selezione e' sempre e solo una cornice.
+    // The selection is always and only a frame.
     if selezionato {
         theme::selection_frame(ui.painter(), rect, egui::CornerRadius::same(3), dark);
     }
@@ -907,7 +907,7 @@ fn riga_test(ui: &mut egui::Ui, item: &TestItem, selezionato: bool, dark: bool) 
     risposta
 }
 
-/// Accorcia un testo con i puntini se non entra nella larghezza disponibile.
+/// Shortens a text with dots if it does not fit the available width.
 fn tronca(ui: &egui::Ui, testo: &str, larghezza: f32, dimensione: f32) -> String {
     if larghezza <= 0.0 {
         return String::new();
@@ -932,7 +932,7 @@ fn tronca(ui: &egui::Ui, testo: &str, larghezza: f32, dimensione: f32) -> String
 
 fn main() -> eframe::Result<()> {
     let preferenze = settings::load();
-    // Percorso eventualmente indicato sulla riga di comando: viene aperto subito.
+    // Path possibly given on the command line: it is opened right away.
     let elenco_iniziale = std::env::args_os()
         .nth(1)
         .map(PathBuf::from)

@@ -1,12 +1,12 @@
-# Compilati
+# Build output
 /target
 
-# Preferenze locali (non fanno parte del codice sorgente)
+# Local preferences (not part of the source code)
 hypergrab_settings.txt
 
-# Immagini prodotte dalle prove di cattura
+# Images produced by the capture tests
 esempi/*.jpg
 
-# File di prova personale: l'elenco di esempio versionato è
+# Personal test file: the versioned example list is
 # esempi/elenco_test.csv
 Novo Documento de Texto.txt

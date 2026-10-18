@@ -1,5 +1,5 @@
-//! Tema grafico in stile "ArtCraft / GridCraft" (aspetto Excel-like) e piccole
-//! icone vettoriali disegnate a mano, così l'app non dipende da font di icone.
+//! "ArtCraft / GridCraft" style graphic theme (Excel-like look) and small
+//! hand-drawn vector icons, so the app does not depend on icon fonts.
 
 use eframe::egui::{
     self, Align2, Color32, CornerRadius, FontId, Rect, RichText, Stroke, Vec2,
@@ -9,9 +9,9 @@ use eframe::egui::{
 // Palette
 // ---------------------------------------------------------------------------
 
-/// Verde "Excel" usato come accento nel tema chiaro.
+/// "Excel" green used as the accent in the light theme.
 pub const ACCENT_LIGHT: Color32 = Color32::from_rgb(0x21, 0x73, 0x46);
-/// Verde più luminoso, leggibile sul tema scuro.
+/// Brighter green, readable on the dark theme.
 pub const ACCENT_DARK: Color32 = Color32::from_rgb(0x35, 0xB1, 0x7A);
 
 pub const DANGER: Color32 = Color32::from_rgb(0xC0, 0x39, 0x2B);
@@ -65,7 +65,7 @@ pub fn muted(dark: bool) -> Color32 {
     }
 }
 
-/// Colore del testo in primo piano: nero pieno in tema chiaro, bianco in tema scuro.
+/// Foreground text color: solid black in the light theme, white in the dark theme.
 pub fn text_strong(dark: bool) -> Color32 {
     if dark {
         Color32::from_rgb(0xF2, 0xF2, 0xF2)
@@ -83,7 +83,7 @@ pub fn hover_bg(dark: bool) -> Color32 {
 }
 
 // ---------------------------------------------------------------------------
-// Applicazione dello stile
+// Applying the style
 // ---------------------------------------------------------------------------
 
 pub fn apply(ctx: &egui::Context, dark: bool) {
@@ -138,15 +138,15 @@ pub fn apply(ctx: &egui::Context, dark: bool) {
     style.spacing.button_padding = Vec2::new(6.0, 3.0);
     style.spacing.interact_size.y = 20.0;
     style.spacing.menu_margin = egui::Margin::same(4);
-    // Barre di scorrimento "solide" (non flottanti): riservano spazio al loro
-    // interno, così non coprono l'ultima riga di tabelle ed elenchi.
-    // Con lo stile predefinito di egui le barre flottano sopra il contenuto.
+    // "Solid" scrollbars (not floating): they reserve space inside
+    // themselves, so they do not cover the last row of tables and lists.
+    // With the default egui style the bars float above the content.
     let mut scroll = egui::style::ScrollStyle::solid();
     scroll.bar_width = 8.0;
     scroll.bar_inner_margin = 4.0;
     scroll.bar_outer_margin = 2.0;
     style.spacing.scroll = scroll;
-    // Testi più compatti: riducono l'ingombro complessivo dell'interfaccia.
+    // More compact text: it reduces the overall footprint of the interface.
     style.text_styles = [
         (egui::TextStyle::Heading, FontId::proportional(16.0)),
         (egui::TextStyle::Body, FontId::proportional(12.5)),
@@ -159,7 +159,7 @@ pub fn apply(ctx: &egui::Context, dark: bool) {
 }
 
 // ---------------------------------------------------------------------------
-// Icone vettoriali
+// Vector icons
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -172,12 +172,12 @@ pub enum Icon {
     Capture,
 }
 
-/// Converte coordinate normalizzate (0..1) del rettangolo dell'icona in punti schermo.
+/// Converts normalized coordinates (0..1) of the icon rectangle into screen points.
 fn n(rect: Rect, x: f32, y: f32) -> egui::Pos2 {
     egui::pos2(rect.left() + rect.width() * x, rect.top() + rect.height() * y)
 }
 
-/// Disegna un'icona vettoriale dentro `rect` (nessuna dipendenza da font).
+/// Draws a vector icon inside `rect` (no dependency on fonts).
 pub fn draw_icon(painter: &egui::Painter, icon: Icon, rect: Rect, color: Color32, w: f32) {
     let s = Stroke::new(w, color);
     let line = |a: (f32, f32), b: (f32, f32)| {
@@ -186,20 +186,20 @@ pub fn draw_icon(painter: &egui::Painter, icon: Icon, rect: Rect, color: Color32
 
     match icon {
         Icon::Save => {
-            // Corpo "floppy"
+            // "Floppy" body
             painter.rect_stroke(
                 Rect::from_min_max(n(rect, 0.16, 0.16), n(rect, 0.84, 0.84)),
                 CornerRadius::same(1),
                 s,
                 egui::StrokeKind::Middle,
             );
-            // Etichetta in alto
+            // Label at the top
             painter.rect_filled(
                 Rect::from_min_max(n(rect, 0.32, 0.16), n(rect, 0.68, 0.40)),
                 CornerRadius::ZERO,
                 color,
             );
-            // Sportello in basso
+            // Shutter at the bottom
             painter.rect_stroke(
                 Rect::from_min_max(n(rect, 0.30, 0.55), n(rect, 0.70, 0.84)),
                 CornerRadius::ZERO,
@@ -232,7 +232,7 @@ pub fn draw_icon(painter: &egui::Painter, icon: Icon, rect: Rect, color: Color32
             }
         }
         Icon::Moon => {
-            // Falce: arco del cerchio esterno + arco del cerchio interno (spostato).
+            // Crescent: arc of the outer circle + arc of the inner (offset) circle.
             let (cx, cy, r) = (0.5f32, 0.5f32, 0.36f32);
             let (bx, by, br) = (0.62f32, 0.5f32, 0.30f32);
             let d = ((bx - cx).powi(2) + (by - cy).powi(2)).sqrt();
@@ -249,14 +249,14 @@ pub fn draw_icon(painter: &egui::Painter, icon: Icon, rect: Rect, color: Color32
             let b2 = ang(p1.0, p1.1, bx, by);
 
             let mut pts: Vec<egui::Pos2> = Vec::new();
-            // arco esterno passando dal lato sinistro (angoli decrescenti da a1)
+            // outer arc passing along the left side (angles decreasing from a1)
             let mut t = a1;
             while t > a2 - std::f32::consts::TAU {
                 pts.push(n(rect, cx + r * t.cos(), cy + r * t.sin()));
                 t -= 0.15;
             }
             pts.push(n(rect, p2.0, p2.1));
-            // arco interno passando dal lato sinistro del cerchio interno
+            // inner arc passing along the left side of the inner circle
             let mut t = b1;
             let mut guard = 0;
             while (t - b2).abs() > 0.05 && guard < 200 {
@@ -272,7 +272,7 @@ pub fn draw_icon(painter: &egui::Painter, icon: Icon, rect: Rect, color: Color32
             painter.circle_filled(n(rect, 0.5, 0.30), w * 0.7, color);
         }
         Icon::Capture => {
-            // Cornice di cattura: quattro angoli aperti con il diaframma al centro.
+            // Capture frame: four open corners with the aperture at the center.
             for (orizzontale, verticale) in [
                 ((0.12, 0.14), (0.36, 0.14)),
                 ((0.12, 0.14), (0.12, 0.38)),
@@ -291,15 +291,15 @@ pub fn draw_icon(painter: &egui::Painter, icon: Icon, rect: Rect, color: Color32
 }
 
 // ---------------------------------------------------------------------------
-// Widget riutilizzabili
+// Reusable widgets
 // ---------------------------------------------------------------------------
 
-/// Pulsante "grande" della barra multifunzione: icona sopra, etichetta sotto.
+/// "Large" ribbon button: icon above, label below.
 pub fn big_button(ui: &mut egui::Ui, icon: Icon, label: &str) -> egui::Response {
     big_button_state(ui, icon, label, false)
 }
 
-/// Come [`big_button`], ma con stato "attivo" (toggle) evidenziato.
+/// Like [`big_button`], but with the "active" (toggle) state highlighted.
 pub fn big_button_state(
     ui: &mut egui::Ui,
     icon: Icon,
@@ -308,8 +308,8 @@ pub fn big_button_state(
 ) -> egui::Response {
     let dark = ui.visuals().dark_mode;
     let a = accent(dark);
-    // La larghezza segue l'etichetta: le traduzioni piu' lunghe ("Executar
-    // captura") non devono uscire dal pulsante.
+    // The width follows the label: longer translations ("Executar
+    // captura") must not overflow the button.
     let testo_w = ui.fonts(|f| {
         f.layout_no_wrap(
             label.to_owned(),
@@ -323,9 +323,9 @@ pub fn big_button_state(
     let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
     let painter = ui.painter();
 
-    // Lo stato attivo ("Punti" e "Legenda" della barra comandi) è indicato
-    // **solo** dalla cornice, come ogni altra selezione del programma; il
-    // riempimento è riservato ai riscontri transitorii del puntatore.
+    // The active state ("Punti" and "Legenda" of the command bar) is shown
+    // **only** by the frame, like every other selection in the program; the
+    // fill is reserved for transient pointer feedback.
     let bg = if resp.is_pointer_button_down_on() {
         a.gamma_multiply(0.30)
     } else if resp.hovered() {
@@ -371,7 +371,7 @@ pub fn big_button_state(
     resp
 }
 
-/// Pulsante compatto a "pillola": icona opzionale + testo, con stato attivo.
+/// Compact "pill" button: optional icon + text, with an active state.
 pub fn pill_button(
     ui: &mut egui::Ui,
     icon: Option<Icon>,
@@ -394,9 +394,9 @@ pub fn pill_button(
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, 20.0), egui::Sense::click());
     let painter = ui.painter();
 
-    // La selezione (linguette di Configurazioni, pulsanti attivi del grafico)
-    // è **solo** una cornice: nessun riempimento, altrimenti il testo andrebbe
-    // forzato in bianco sul tema chiaro e smarrebbe il proprio colore.
+    // The selection (Settings tabs, active chart buttons) is **only** a
+    // frame: no fill, otherwise the text would have to be forced to white on
+    // the light theme and would lose its own color.
     let bg = if resp.is_pointer_button_down_on() {
         a.gamma_multiply(0.35)
     } else if resp.hovered() {
@@ -450,7 +450,7 @@ pub fn pill_button(
     resp
 }
 
-/// "Card" bianca con bordo, usata per raggruppare i contenuti di una pagina.
+/// White "card" with a border, used to group the contents of a page.
 pub fn card<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let dark = ui.visuals().dark_mode;
     egui::Frame::new()
@@ -462,7 +462,7 @@ pub fn card<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
         .inner
 }
 
-/// Titolo di sezione con barretta di accento a sinistra.
+/// Section title with an accent bar on the left.
 pub fn section_title(ui: &mut egui::Ui, title: &str) {
     let dark = ui.visuals().dark_mode;
     let a = accent(dark);
@@ -474,24 +474,24 @@ pub fn section_title(ui: &mut egui::Ui, title: &str) {
             RichText::new(title)
                 .size(13.0)
                 .strong()
-                // Nero pieno nel tema chiaro: il colore di testo di default di
-                // egui in tema chiaro è un grigio (80), non nero.
+                // Solid black in the light theme: egui's default text color
+                // in the light theme is a gray (80), not black.
                 .color(text_strong(dark)),
         );
     });
 }
 
-/// Etichetta secondaria (grigio, piccola).
+/// Secondary label (gray, small).
 pub fn hint(ui: &mut egui::Ui, text: &str) {
     let dark = ui.visuals().dark_mode;
     ui.label(RichText::new(text).size(10.5).color(muted(dark)));
 }
 
-/// Cornice di selezione: è l'**unico** modo in cui il programma indica una
-/// selezione (riga dell'elenco progetti, voce della lista sensori, linguetta
-/// di scheda attiva, pulsante attivo). La selezione è sempre e solo un
-/// contorno, mai un riempimento: così il testo sottostante mantiene il proprio
-/// colore e resta leggibile, e tutte le schede si riconoscono allo stesso modo.
+/// Selection frame: it is the **only** way the program indicates a
+/// selection (project list row, sensor list entry, active tab
+/// label, active button). The selection is always and only an
+/// outline, never a fill: this way the text underneath keeps its own
+/// color and stays readable, and all the tabs are recognized the same way.
 pub fn selection_frame(
     painter: &egui::Painter,
     rect: egui::Rect,
@@ -506,9 +506,9 @@ pub fn selection_frame(
     );
 }
 
-/// Piccolo pulsante quadrato con un'icona vettoriale, pensato per le righe di
-/// lista dove serve un'azione di scorrimento (dimensioni e riscontri di
-/// puntatore simili a `Ui::small_button`).
+/// Small square button with a vector icon, meant for list rows
+/// where a scrolling action is needed (sizes and pointer
+/// feedback similar to `Ui::small_button`).
 pub fn small_icon_button(
     ui: &mut egui::Ui,
     icon: Icon,
@@ -528,8 +528,8 @@ pub fn small_icon_button(
     resp
 }
 
-/// Pulsante d'azione con icona + testo, a tinta piena (il comando principale
-/// della scheda in cui si trova).
+/// Action button with icon + text, in full color (the main command
+/// of the tab it belongs to).
 pub fn action_button(
     ui: &mut egui::Ui,
     icon: Icon,

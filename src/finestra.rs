@@ -1,13 +1,13 @@
-//! Nascondere e rimostrare la finestra di Hypergrab con le API di Windows.
+//! Hiding and re-showing the Hypergrab window with the Windows APIs.
 //!
-//! Per fotografare l'applicazione che resta in primo piano la finestra di
-//! Hypergrab deve sparire. Se la si nascondesse con un comando di egui, pero',
-//! Windows smetterebbe di mandare WM_PAINT a una finestra invisibile: il ciclo
-//! di disegno si fermerebbe e non sarebbe piu' in grado di rimostrarla (la
-//! finestra resterebbe nascosta fino alla chiusura del programma). Percio'
-//! nascondere e rimostrare avvengono direttamente, anche da un altro thread.
+//! To photograph the application that stays in the foreground the Hypergrab
+//! window has to disappear. If it were hidden with an egui command, though,
+//! Windows would stop sending WM_PAINT to an invisible window: the drawing
+//! loop would stop and would no longer be able to re-show it (the window
+//! would stay hidden until the program is closed). Therefore hiding and
+//! re-showing happen directly, even from another thread.
 
-/// La finestra di questa applicazione.
+/// The window of this application.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Finestra {
     hwnd: isize,
@@ -15,12 +15,12 @@ pub struct Finestra {
 
 #[cfg(windows)]
 impl Finestra {
-    /// La finestra di Hypergrab in primo piano, se c'e'.
+    /// The Hypergrab window in the foreground, if there is one.
     ///
-    /// La cattura parte da un tasto premuto o da un clic sul pulsante, quindi
-    /// la finestra in primo piano e' proprio questa; si controlla comunque che
-    /// appartenga a questo processo, per non toccare finestre di altri
-    /// programmi.
+    /// The capture starts from a key press or from a click on the button, so
+    /// the foreground window is exactly this one; it still checks that it
+    /// belongs to this process, in order not to touch windows of other
+    /// programs.
     pub fn attiva() -> Option<Self> {
         use windows_sys::Win32::System::Threading::GetCurrentProcessId;
         use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -41,14 +41,14 @@ impl Finestra {
         })
     }
 
-    /// Nasconde la finestra: l'applicazione sottostante torna in primo piano.
+    /// Hides the window: the underlying application returns to the foreground.
     pub fn nascondi(self) {
         use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
 
         unsafe { ShowWindow(self.hwnd as _, SW_HIDE) };
     }
 
-    /// Rimostra la finestra e la riporta davanti.
+    /// Re-shows the window and brings it back to the front.
     pub fn mostra(self) {
         use windows_sys::Win32::UI::WindowsAndMessaging::{
             BringWindowToTop, IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE, SW_SHOW,
@@ -61,9 +61,9 @@ impl Finestra {
             } else {
                 ShowWindow(hwnd, SW_SHOW);
             }
-            // Il primo piano spetta di norma all'applicazione attiva: il
-            // tentativo puo' non riuscire, ma la finestra e' comunque visibile
-            // e davanti alle altre.
+            // The foreground normally belongs to the active application: the
+            // attempt may fail, but the window is anyway visible
+            // and in front of the others.
             BringWindowToTop(hwnd);
             SetForegroundWindow(hwnd);
         }
@@ -85,7 +85,7 @@ impl Finestra {
 mod tests {
     use super::*;
 
-    /// Un riferimento che non esiste non deve far saltare nulla.
+    /// A reference that does not exist must not make anything panic.
     #[test]
     fn riferimento_inesistente_non_ha_effetto() {
         let finta = Finestra { hwnd: 0x1234 };

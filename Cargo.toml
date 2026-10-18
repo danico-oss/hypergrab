@@ -21,6 +21,6 @@ windows-sys = { version = "0.59", features = [
 ] }
 
 [dev-dependencies]
-# Serve solo ai test per costruire un XLSX minimo in memoria.
-# Versione fissata: calamine 0.26 non compila con zip >= 2.5.
+# Needed only by the tests, to build a minimal XLSX in memory.
+# Version pinned: calamine 0.26 does not compile with zip >= 2.5.
 zip = { version = "=2.4.2", default-features = false, features = ["deflate"] }

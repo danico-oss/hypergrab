@@ -1,25 +1,25 @@
-//! Lettura dell'elenco dei test da un file CSV o XLSX.
+//! Reading the test list from a CSV or XLSX file.
 //!
-//! Formato atteso: **prima colonna** il codice del test, **seconda colonna**
-//! la descrizione. Nei file CSV il separatore viene riconosciuto dalla prima
-//! riga (`;`, virgola o tabulazione); i file Excel usano il primo foglio.
+//! Expected format: **first column** the test code, **second column**
+//! the description. In CSV files the separator is recognized from the
+//! first row (`;`, comma or tab); Excel files use the first sheet.
 
 use calamine::{open_workbook_auto, Data, Reader};
 use std::path::Path;
 
-/// Una voce dell'elenco dei test.
+/// An entry in the test list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TestItem {
-    /// Codice del test: diventa il nome del file JPG.
+    /// Test code: becomes the JPG file name.
     pub code: String,
-    /// Descrizione del test (facoltativa).
+    /// Test description (optional).
     pub description: String,
 }
 
-/// Legge l'elenco dei test dal file indicato.
+/// Reads the test list from the given file.
 ///
-/// `salta_intestazione` va messo a `true` quando la prima riga contiene i titoli
-/// delle colonne: in quel caso viene scartata.
+/// `salta_intestazione` must be set to `true` when the first row contains the
+/// column titles: in that case it is discarded.
 pub fn leggi_elenco(path: &Path, salta_intestazione: bool) -> Result<Vec<TestItem>, String> {
     let estensione = path
         .extension()
@@ -31,7 +31,7 @@ pub fn leggi_elenco(path: &Path, salta_intestazione: bool) -> Result<Vec<TestIte
     }
 }
 
-/// Nome del foglio letto per primo, usato nei test e nei messaggi di stato.
+/// Name of the sheet read first, used in tests and status messages.
 #[cfg(test)]
 fn nome_foglio(path: &Path) -> Option<String> {
     let wb = open_workbook_auto(path).ok()?;
@@ -42,7 +42,7 @@ fn nome_foglio(path: &Path) -> Option<String> {
 // CSV
 // ---------------------------------------------------------------------------
 
-/// Legge un file di testo separato da `;`, virgola o tabulazione.
+/// Reads a text file separated by `;`, comma or tab.
 fn leggi_csv(path: &Path, salta_intestazione: bool) -> Result<Vec<TestItem>, String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
     let testo = decodifica(&bytes);
@@ -73,8 +73,8 @@ fn leggi_csv(path: &Path, salta_intestazione: bool) -> Result<Vec<TestItem>, Str
     Ok(voci)
 }
 
-/// Riconosce il separatore dalla prima riga: vince quello piu' frequente.
-/// In caso di parita' (o di nessun separatore) si usa la virgola.
+/// Detects the separator from the first row: the most frequent one wins.
+/// In case of a tie (or of no separator) the comma is used.
 pub fn separatore(testo: &str) -> u8 {
     let prima = testo.lines().next().unwrap_or("");
     let conta = |c: char| prima.matches(c).count();
@@ -88,9 +88,9 @@ pub fn separatore(testo: &str) -> u8 {
     }
 }
 
-/// Interpreta i byte del file come testo: UTF-8 (con o senza BOM) e, se non e'
-/// UTF-8 valido, come Windows-1252 (il caso tipico dei CSV esportati da Excel
-/// in italiano).
+/// Interprets the file bytes as text: UTF-8 (with or without BOM) and, if it
+/// is not valid UTF-8, as Windows-1252 (the typical case of CSV files
+/// exported from Excel in Italian).
 pub fn decodifica(bytes: &[u8]) -> String {
     let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
     match std::str::from_utf8(bytes) {
@@ -99,10 +99,10 @@ pub fn decodifica(bytes: &[u8]) -> String {
     }
 }
 
-/// Converte un byte secondo la tabella Windows-1252.
+/// Converts a byte according to the Windows-1252 table.
 fn da_cp1252(b: u8) -> char {
-    // Solo l'intervallo 0x80..0x9F differisce da Latin-1: sono i caratteri che
-    // Excel usa al posto dei caratteri di controllo.
+    // Only the 0x80..0x9F range differs from Latin-1: these are the characters
+    // that Excel uses in place of the control characters.
     const ALTO: [char; 32] = [
         '\u{20AC}', '\u{81}', '\u{201A}', '\u{0192}', '\u{201E}', '\u{2026}', '\u{2020}',
         '\u{2021}', '\u{02C6}', '\u{2030}', '\u{0160}', '\u{2039}', '\u{0152}', '\u{8D}',
@@ -121,7 +121,7 @@ fn da_cp1252(b: u8) -> char {
 // XLSX
 // ---------------------------------------------------------------------------
 
-/// Legge il primo foglio di un file Excel.
+/// Reads the first sheet of an Excel file.
 fn leggi_foglio(path: &Path, salta_intestazione: bool) -> Result<Vec<TestItem>, String> {
     let mut cartella = open_workbook_auto(path).map_err(|e| e.to_string())?;
     let nome = cartella
@@ -150,8 +150,8 @@ fn leggi_foglio(path: &Path, salta_intestazione: bool) -> Result<Vec<TestItem>, 
     Ok(voci)
 }
 
-/// Testo di una cella: i numeri interi perdono il separatore decimale, cosi'
-/// un codice memorizzato come numero resta "1001" e non "1001.0".
+/// Text of a cell: integer numbers lose the decimal separator, so a code
+/// stored as a number stays "1001" and not "1001.0".
 fn testo_cella(cella: Option<&Data>) -> String {
     match cella {
         None | Some(Data::Empty) => String::new(),
@@ -166,7 +166,7 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    /// Percorso temporaneo unico per i file di prova.
+    /// Unique temporary path for the test files.
     fn temporaneo(nome: &str) -> PathBuf {
         let dir = std::env::temp_dir();
         let unico = format!(
@@ -186,25 +186,25 @@ mod tests {
         assert_eq!(separatore("Codice;Descrizione\nT-1;Prima"), b';');
         assert_eq!(separatore("Codice,Descrizione\nT-1,Prima"), b',');
         assert_eq!(separatore("Codice\tDescrizione\nT-1\tPrima"), b'\t');
-        // Nessun separatore: virgola predefinita.
+        // No separator: default comma.
         assert_eq!(separatore("Codice\nT-1"), b',');
-        // Parita' fra punto e virgola e virgola: virgola.
+        // Tie between semicolon and comma: comma.
         assert_eq!(separatore("a;b,c"), b',');
-        // Conta solo la prima riga.
+        // Counts only the first row.
         assert_eq!(separatore("a;b\nc,d,e"), b';');
     }
 
     #[test]
     fn decodifica_utf8_e_windows_1252() {
         assert_eq!(decodifica("Ciao àèì".as_bytes()), "Ciao àèì");
-        // BOM in testa rimosso.
+        // BOM at the start removed.
         let mut con_bom = vec![0xEF, 0xBB, 0xBF];
         con_bom.extend_from_slice("Codice".as_bytes());
         assert_eq!(decodifica(&con_bom), "Codice");
         // Windows-1252: 0xE7 = 'ç', 0xE3 = 'ã'.
         assert_eq!(decodifica(&[b'C', 0xE7, b'a']), "Cça");
         assert_eq!(decodifica(&[0xE3]), "ã");
-        // 0x80 in Windows-1252 e' l'euro.
+        // 0x80 in Windows-1252 is the euro sign.
         assert_eq!(decodifica(&[0x80]), "€");
     }
 
@@ -223,7 +223,7 @@ mod tests {
         assert_eq!(voci[0].description, "Verifica iniziale");
         assert_eq!(voci[1].code, "T-02");
 
-        // Senza intestazione la prima riga e' un dato come gli altri.
+        // Without a header the first row is data like the others.
         let voci = leggi_elenco(&path, false).unwrap();
         assert_eq!(voci.len(), 3);
         assert_eq!(voci[0].code, "Codice");
@@ -266,7 +266,7 @@ mod tests {
         assert_eq!(voci[0].description, "Prima prova");
         assert_eq!(voci[1].code, "T-02");
         assert_eq!(voci[1].description, "Seconda, prova");
-        // Codice memorizzato come numero: niente ".0".
+        // Code stored as a number: no ".0".
         assert_eq!(voci[2].code, "1003");
         assert_eq!(voci[2].description, "Codice numerico");
 
@@ -280,9 +280,9 @@ mod tests {
         assert!(leggi_elenco(&path, true).is_err());
     }
 
-    /// Costruisce un XLSX minimo in memoria: intestazione + tre righe, con
-    /// una cella numerica, cosi' lettura e conversione sono verificate senza
-    /// dipendere da file esterni.
+    /// Builds a minimal XLSX in memory: header + three rows, with one numeric
+    /// cell, so that reading and conversion are verified without depending on
+    /// external files.
     fn xlsx_di_prova() -> Vec<u8> {
         let righe = [
             ("Codice", "Descrizione", None),

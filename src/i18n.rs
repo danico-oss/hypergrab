@@ -1,12 +1,12 @@
-//! Internazionalizzazione dell'interfaccia.
+//! Internationalization of the interface.
 //!
-//! Le stringhe italiane sono la lingua di riferimento: nei punti dell'interfaccia
-//! si passa la stringa italiana a [`t`], che restituisce la traduzione nella lingua
-//! attiva. Se una traduzione manca, viene mostrato l'italiano (fallback sicuro).
+//! The Italian strings are the reference language: at the interface points
+//! the Italian string is passed to [`t`], which returns the translation into the
+//! active language. If a translation is missing, Italian is shown (safe fallback).
 //!
-//! Le lingue supportate sono italiano, portoghese brasiliano e inglese.
+//! The supported languages are Italian, Brazilian Portuguese and English.
 
-/// Lingua dell'interfaccia.
+/// Interface language.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Language {
     It,
@@ -21,10 +21,10 @@ impl Default for Language {
 }
 
 impl Language {
-    /// Tutte le lingue supportate, nell'ordine mostrato nella barra alta.
+    /// All supported languages, in the order shown in the top bar.
     pub const ALL: [Language; 3] = [Language::It, Language::PtBr, Language::En];
 
-    /// Codice salvato nel file delle preferenze.
+    /// Code saved in the preferences file.
     pub fn code(self) -> &'static str {
         match self {
             Language::It => "it",
@@ -33,7 +33,7 @@ impl Language {
         }
     }
 
-    /// Codice breve mostrato nei pulsanti della barra alta.
+    /// Short code shown in the top bar buttons.
     pub fn short(self) -> &'static str {
         match self {
             Language::It => "IT",
@@ -42,7 +42,7 @@ impl Language {
         }
     }
 
-    /// Interpreta un codice lingua (tollerante a maiuscole e varianti).
+    /// Parses a language code (tolerant of case and variants).
     pub fn from_code(code: &str) -> Option<Language> {
         match code.trim().to_lowercase().as_str() {
             "it" | "ita" | "italiano" | "italian" => Some(Language::It),
@@ -55,7 +55,7 @@ impl Language {
     }
 }
 
-/// Traduce una stringa italiana nella lingua attiva.
+/// Translates an Italian string into the active language.
 pub fn t(lang: Language, it: &'static str) -> &'static str {
     match lang {
         Language::It => it,
@@ -64,7 +64,7 @@ pub fn t(lang: Language, it: &'static str) -> &'static str {
     }
 }
 
-/// Sceglie fra la forma singolare e plurale in base al numero.
+/// Chooses between the singular and plural form based on the number.
 pub fn plural(lang: Language, n: usize, one: &'static str, many: &'static str) -> &'static str {
     t(lang, if n == 1 { one } else { many })
 }
@@ -246,8 +246,8 @@ mod tests {
 
     #[test]
     fn en_e_diverso_dall_italiano_sul_contenuto_lungo() {
-        // Le pagine "Informazioni" hanno chiavi in comune: la traduzione EN
-        // deve essere effettivamente diversa dall'italiano.
+        // The "Informazioni" pages have keys in common: the EN translation
+        // must actually differ from the Italian one.
         let it = "Hypergrab è uno strumento di cattura di schermo pensato per accompagnare il processo di acquisizione di evidenze durante la qualificazione o la validazione di sistemi informatizzati.";
         assert_ne!(t(Language::En, it), it);
         assert_ne!(t(Language::PtBr, it), it);

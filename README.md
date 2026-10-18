@@ -1,56 +1,56 @@
 # Hypergrab
 
-**Cattura schermo dei test**
+**Test screenshot capture**
 
-Applicazione desktop in Rust per l'acquisizione di evidenze durante la
-qualificazione o la validazione di sistemi informatizzati. Importa un elenco di
-test da un file CSV o XLSX, cattura la finestra dell'applicazione che resta in
-primo piano, vi sovrimprime data e ora e salva il JPG con il nome del codice del
-test.
+A desktop application in Rust for collecting evidence while qualifying or
+validating computerized systems. It imports a list of tests from a CSV or XLSX
+file, captures the window of the application that stays in the foreground,
+stamps the date and time onto the image and saves the JPG with the test code as
+its name.
 
-## Funzionalità
+## Features
 
-- **Importazione elenco**: file CSV/TXT (separatore `;`, virgola o tabulazione,
-  riconosciuto automaticamente) ed Excel (`.xlsx`, `.xlsm`, `.xls`, `.ods`,
-  primo foglio). I file di testo sono letti come UTF-8 e, se non validi, come
-  Windows-1252: i CSV esportati da Excel in italiano non perdono gli accenti.
-- **Elenco dei test**: ogni riga mostra codice e descrizione; un clic la
-  seleziona (la selezione è sempre e solo una cornice, mai un riempimento).
-  All'apertura del file viene selezionato il primo test, così si può catturare
-  subito.
-- **Cattura**: il pulsante "Esegui cattura" o il tasto **F12** nascondono
-  Hypergrab per qualche istante e fotografano la finestra che in quel momento è
-  in primo piano. Se la finestra non è utilizzabile (per esempio è minimizzata)
-  si cattura l'intero schermo virtuale, cioè tutti i monitor insieme.
-- **Data e ora**: vengono disegnate in basso a destra sull'immagine in
-  **arancione brillante, senza sfondo**, con un contorno scuro pieno che le tiene
-  leggibili sia sui fondi chiari sia su quelli scuri. Il formato segue la lingua
-  dell'interfaccia: `18/10/2026 14:03:22` in italiano e portoghese,
-  `10/18/2026 14:03:22` in inglese. Il carattere è preso dai font di Windows
-  (Segoe UI e ripieghi).
-- **Anteprima e salvataggio**: l'anteprima mostra esattamente l'immagine che
-  verrà scritta. "Salva JPG" scrive il file in JPEG (qualità 90) nella **stessa
-  cartella del file di elenco**, con **nome uguale al codice del test**; se il
-  file esiste già viene sovrascritto e l'anteprima lo segnala.
-- **Interfaccia**: tema chiaro (predefinito) e scuro, stile compatto adatto
-  anche agli schermi dei notebook, lingue italiano / inglese / portoghese
-  brasiliano. Le preferenze (tema e lingua) sono ricordate in
-  `hypergrab_settings.txt`, accanto all'eseguibile.
+- **Importing the list**: CSV/TXT files (separator `;`, comma or tab character,
+  recognized automatically) and Excel files (`.xlsx`, `.xlsm`, `.xls`, `.ods`,
+  first sheet). Text files are read as UTF-8 and, when that is not valid, as
+  Windows-1252: CSV files exported by Excel in Italian do not lose their
+  accented characters.
+- **Test list**: every row shows the code and the description; a click selects
+  it (the selection is always a frame and never a fill). When the file is
+  opened the first test is selected, so a capture can be taken right away.
+- **Capture**: the "Run capture" button or the **F12** key hide Hypergrab for a
+  moment and photograph the window that is in the foreground at that instant.
+  If the window cannot be used (for example it is minimized) the whole virtual
+  screen is captured, that is, all the monitors together.
+- **Date and time**: drawn in the bottom right corner of the image in **bright
+  orange, with no background**, with a solid dark outline that keeps them
+  readable both on light and on dark backgrounds. The format follows the
+  language of the interface: `18/10/2026 14:03:22` in Italian and Portuguese,
+  `10/18/2026 14:03:22` in English. The font is taken from the Windows fonts
+  (Segoe UI and fallbacks).
+- **Preview and saving**: the preview shows exactly the image that will be
+  written. "Save JPG" writes the file as JPEG (quality 90) in the **same folder
+  as the list file**, with the **name equal to the test code**; if the file
+  already exists it is overwritten and the preview points that out.
+- **Interface**: light (default) and dark theme, a compact style that also
+  suits notebook screens, and the Italian / English / Brazilian Portuguese
+  languages. The preferences (theme and language) are remembered in
+  `hypergrab_settings.txt`, next to the executable.
 
-## Formato del file di elenco
+## List file format
 
-Due colonne, in quest'ordine:
+Two columns, in this order:
 
-| Colonna | Contenuto | Note |
+| Column | Content | Notes |
 | --- | --- | --- |
-| 1 | **Codice del test** | diventa il nome del file JPG |
-| 2 | **Descrizione del test** | facoltativa |
+| 1 | **Test code** | becomes the name of the JPG file |
+| 2 | **Test description** | optional |
 
-La casella "La prima riga è un'intestazione" (attiva per impostazione
-predefinita) scarta la prima riga: togli la spunta se il file contiene già solo
-i dati. Le righe senza codice vengono ignorate.
+The "The first row is a header" checkbox (on by default) discards the first
+row: clear it when the file already contains data only. Rows without a code are
+ignored.
 
-Esempio CSV:
+Sample CSV:
 
 ```csv
 Codice;Descrizione
@@ -59,56 +59,57 @@ T-02;Controllo dei parametri di processo
 T-03;Prova di accesso con utente non autorizzato
 ```
 
-Un elenco di prova è in `esempi/elenco_test.csv`.
+A sample list is in `esempi/elenco_test.csv`.
 
-Nel file Excel basta lo stesso schema nel primo foglio; un codice memorizzato
-come numero (per esempio `1003`) viene usato come `1003`, non come `1003.0`.
+In an Excel file the same layout in the first sheet is enough; a code stored as
+a number (for example `1003`) is used as `1003`, not as `1003.0`.
 
-## Come si usa
+## How to use it
 
-1. "Apri file…" e scegli l'elenco (`esempi/elenco_test.csv` per una prova).
-2. Porta in primo piano l'applicazione da documentare.
-3. Seleziona il test nell'elenco e premi **F12** (o usa "Esegui cattura").
-   Hypergrab si nasconde per circa mezzo secondo e poi torna con l'anteprima.
-4. Controlla l'anteprima e premi "Salva JPG".
+1. "Open file…" and choose the list (`esempi/elenco_test.csv` for a try).
+2. Bring the application you want to document to the foreground.
+3. Select the test in the list and press **F12** (or use "Run capture").
+   Hypergrab hides for about half a second and then comes back with the
+   preview.
+4. Check the preview and press "Save JPG".
 
-Il percorso di destinazione è indicato sotto i pulsanti dell'anteprima, così si
-sa sempre dove finirà il file.
+The destination path is shown under the preview buttons, so you always know
+where the file will end up.
 
-## Note tecniche
+## Technical notes
 
-- La cattura usa le API di Windows: `GetForegroundWindow` per la finestra,
-  copia dei pixel dallo schermo (`BitBlt` su un bitmap compatibile) e, se
-  qualcosa non è disponibile, ripiego sull'intero schermo virtuale. Il canale
-  alfa dei bitmap dello schermo non è significativo e viene ignorato.
-- Il codice sanitizza il nome del file (`\ / : * ? " < > |`, caratteri di
-  controllo, punti e spazi finali) e aggiunge un suffisso ai nomi riservati dal
-  sistema (`CON`, `PRN`, `COM1`…).
-- L'icona è disegnata a mano nel codice (`src/icon.rs`): il test
-  `icon::tests::scrivi_file_ico` rigenera `assets/hypergrab.ico`, che `build.rs`
-  incorpora nell'eseguibile con `rc.exe` insieme ai dati di versione. Il test
-  `anteprime_png` produce anche un foglio di contatto con le varie misure su
-  sfondo chiaro e scuro.
-- Il profilo di rilascio è collegato alla CRT statica
-  (`.cargo/config.toml`), quindi `hypergrab.exe` non richiede le Microsoft
-  Visual C++ Redistributable sulla macchina di destinazione.
+- The capture uses the Windows APIs: `GetForegroundWindow` for the window, a
+  pixel copy from the screen (`BitBlt` onto a compatible bitmap) and, if
+  something is not available, a fallback to the whole virtual screen. The alpha
+  channel of the screen bitmaps is not meaningful and is ignored.
+- The code sanitizes the file name (`\ / : * ? " < > |`, control characters,
+  trailing dots and spaces) and appends a suffix to the names reserved by the
+  system (`CON`, `PRN`, `COM1`…).
+- The icon is drawn by hand in the code (`src/icon.rs`): the test
+  `icon::tests::scrivi_file_ico` regenerates `assets/hypergrab.ico`, which
+  `build.rs` embeds into the executable with `rc.exe` together with the version
+  data. The `anteprime_png` test also produces a contact sheet with the various
+  sizes on a light and a dark background.
+- The release profile links against the static CRT (`.cargo/config.toml`), so
+  `hypergrab.exe` does not require the Microsoft Visual C++ Redistributable on
+  the target machine.
 
-## Compilazione
+## Building
 
 ```powershell
-cargo test          # genera anche assets/hypergrab.ico
+cargo test          # also generates assets/hypergrab.ico
 cargo run --release
 ```
 
-Serve una toolchain Rust per il target `x86_64-pc-windows-msvc`; per
-incorporare l'icona serve `rc.exe` dello Windows SDK (se manca, la build
-prosegue senza icona, con un avviso).
+A Rust toolchain for the `x86_64-pc-windows-msvc` target is required; to embed
+the icon, `rc.exe` from the Windows SDK is needed (if it is missing, the build
+goes on without an icon, with a warning).
 
-## Licenza
+## License
 
 GNU General Public License v3.0 —
 <https://github.com/danico-oss/hypergrab>
 
-Autore: Daniel Consonni. Un ringraziamento speciale a Geovanna Mendes de Souza,
-le cui osservazioni sono state il punto di partenza per lo sviluppo di questa
-applicazione.
+Author: Daniel Consonni. A special thank you to Geovanna Mendes de Souza,
+whose observations were the starting point for the development of this
+application.
